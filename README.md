@@ -40,20 +40,20 @@ A `.vtxprog` starts with the 12-character header `VTXPROG1000 `, padded to 32 by
 | 1 | Pedal 1 enable adds 2. Pedal 2 enable adds 4. Reverb enable adds 16. | Yes |
 | 2 | Amp model, 0 through 19, in the Tone Room list order. | Yes, every model |
 | 3–6 | Gain, treble, middle, bass. | Yes |
-| 7–8 | Presence, resonance. | Yes |
-| 9 | Volume. | Yes |
+| 7–8 | Left at 50 and 20 in every Mapping7 program. | Not moved in Mapping7 |
+| 9 | Resonance. 75 is 7.5. Mapping7 stores 100. | Yes, Mapping7 |
 | 10 | Bright cap, 0 off, 1 on. | Yes |
 | 11 | Low cut, 0 off, 1 on. | Yes |
 | 12 | Mid boost, 0 off, 1 on. | Yes |
-| 13 | Bias. 0 standard, 1 cold, 2 hot. | Yes |
-| 14 | Power amp. 0 class A, 1 class AB. AC30 and AC30TB stay class A. | Yes |
+| 13 | Bias. 0 off, 1 cold, 2 hot. Mapping7 sets cold and hot on VOX AC30. | Yes |
+| 14 | Power amp. 0 class A, 1 class AB. Mapping7 stores class AB on VOX AC30. | Yes, Mapping7 |
 | 15 | Pedal 1 type, 0 through 9. | Yes, every type |
 | 16–22 | Pedal 1 knobs. The layout depends on the type. | See below |
 | 23 | Pedal 2 type, 0 through 6. | Yes, every type |
 | 24–30 | Pedal 2 knobs. The layout depends on the type. | See below |
 | 31–38, 45 | Always 0 in the files so far. | Unused |
-| 39 | Reverb type. 0 room, 1 spring, 2 hall, 3 plate. | Yes |
-| 40–41 | Reverb mix, reverb time. | Yes |
+| 39 | Reverb type. 0 room, 1 spring, 2 hall, 3 plate. Mapping7 isolates 1, 2, and 3. | Yes |
+| 40–41 | Reverb mix, reverb time. Mapping7 sets each to 100 on its own program. | Yes |
 | 42 | Pre delay. The maximum setting stores 70. | Yes |
 | 43 | Low damp. A Tone Room value of 10 stores 100. | Yes |
 | 44 | High damp. A Tone Room value of 10 stores 100. | Yes |
@@ -82,11 +82,19 @@ Presence and resonance are VT40X amp controls. Presence boosts the high end, and
 - Black phaser resonance is byte 26, manual is byte 27, and depth is byte 28.
 - Tremolo speed and black phaser speed are the exception. Setting either one to 10 stores 16 in byte 24 and 39 in byte 25. The programs that left speed alone do not share one default: tremolo sits at 114 and 6, and black phaser sits at 100 and 0.
 
-Drive pedals still share gain, tone, level, treble, middle, and bass. Those bytes move in real programs, and the order matches the manual. They have not been moved one knob at a time.
+`fixtures/Mapping7.vtxprog` changes one control in each region from that same chain. Pedal 1 on, pedal 2 on, and reverb on together store 22 in the enable byte. Pedal 1 and pedal 2 on, with reverb off, store 6.
+
+- Tube OD is type 2. Drive, tone, level, treble, middle, and bass are bytes 16, 18, 19, 20, 21, and 22. Each program sets one of those to 100. Byte 17 stays 0.
+- Comp sens, level, and attack are bytes 16, 18, and 19. Each goes to 100 on its own program. Voice stays stored 1.
+- Chorus speed fully down stores 100 in byte 16 and leaves byte 17 at 0. Chorus speed 2 stores 208 in byte 16 and 7 in byte 17. That pair is the speed edit. Manual and mix were not turned.
+- Tremolo speed stores bytes 24 and 25 as 114/6 at 1.650 Hz, 184/11 at 3, 136/19 at 5, 88/27 at 7, 64/31 at 8, and 40/35 at 9.
+- Black phaser speed stores 100/0 at 0.100 Hz, 232/3 at 1, 208/7 at 2, 136/19 at 5, and 64/31 at 8.
+- Amp ids isolated here are Deluxe CL Vibrato 0, Deluxe CL Normal 1, Boutique CL 4, Boutique OD 5, VOX AC30TB 7, Brit 1959 Treble 8, and Brit 1959 Normal 9.
+- Class AB is byte 14 set to 1 while the amp id stays 6.
 
 ## Checks
 
-`npm run check` reads every bank in `public/banks` and the mapping fixtures, writes each file back, and requires the bytes to match. It also checks the confirmed type ids, the AC30 class, and a few tone descriptions. The script does not launch Tone Room, and it does not play a program through an amp.
+`npm run check` reads every bank in `public/banks` and the mapping fixtures, writes each file back, and requires the bytes to match. It also checks the confirmed type ids, the class byte on the example banks, and a few tone descriptions. Mapping7 is the file that stores class AB on VOX AC30. The script does not launch Tone Room, and it does not play a program through an amp.
 
 ## Example banks
 

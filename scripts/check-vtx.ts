@@ -145,6 +145,7 @@ assertMapping2File();
 assertMapping3File();
 assertMapping4File();
 assertMapping5File();
+assertMapping7File();
 
 console.log(`Round-tripped ${files.length} banks, ${library.length} programs.`);
 console.log(scooped.notes.join(" "));
@@ -348,6 +349,50 @@ function assertMapping5File() {
     const change = expected[slot];
     if (program.name !== change.name) {
       throw new Error(`Mapping5 slot ${slot} is named ${program.name}.`);
+    }
+    program.params.forEach((value, index) => {
+      const wanted = index in change.changes ? change.changes[index] : baseline[index];
+      if (value !== wanted) {
+        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
+      }
+    });
+  });
+}
+
+/**
+ * Mapping7 changes one control in each region from the baseline chain.
+ * Chorus speed 2 writes bytes 16 and 17 together. That pair is the speed edit.
+ */
+function assertMapping7File() {
+  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping7.vtxprog")));
+  const bank = parseVtx(original);
+  if (!bytesEqual(original, writeVtx(bank))) {
+    throw new Error("Mapping7.vtxprog did not round-trip.");
+  }
+  const baseline = [
+    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
+    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
+  ];
+  const expected: { name: string; changes: Record<number, number> }[] = [
+    { name: "OdD TmF Res Spr", changes: { 1: 22, 9: 100, 15: 2, 16: 100, 23: 4, 24: 114, 25: 6, 39: 1 } },
+    { name: "OdT Tm3 BiC Hal", changes: { 1: 22, 13: 1, 15: 2, 18: 100, 23: 4, 24: 184, 25: 11, 39: 2 } },
+    { name: "OdL Tm7 BiH Plt", changes: { 1: 22, 13: 2, 15: 2, 19: 100, 23: 4, 24: 88, 25: 27, 39: 3 } },
+    { name: "OdTr Tm5 Cls Rmx", changes: { 1: 22, 14: 1, 15: 2, 20: 100, 23: 4, 24: 136, 25: 19, 40: 100 } },
+    { name: "OdM Tm8 DxV Rtm", changes: { 1: 22, 2: 0, 15: 2, 21: 100, 23: 4, 24: 64, 25: 31, 41: 100 } },
+    { name: "OdB Tm9 DxN", changes: { 1: 6, 2: 1, 15: 2, 22: 100, 23: 4, 24: 40, 25: 35 } },
+    { name: "CmS PhF BCL", changes: { 1: 6, 2: 4, 16: 100, 23: 1, 24: 100 } },
+    { name: "CmL Ph1 BOD", changes: { 1: 6, 2: 5, 18: 100, 23: 1, 24: 232, 25: 3 } },
+    { name: "CmA Ph2 A30T", changes: { 1: 6, 2: 7, 19: 100, 23: 1, 24: 208, 25: 7 } },
+    { name: "Ch0 Ph5 B59T", changes: { 1: 6, 2: 8, 15: 1, 16: 100, 23: 1, 24: 136, 25: 19 } },
+    { name: "Ch2 Ph8 B59N", changes: { 1: 6, 2: 9, 15: 1, 16: 208, 17: 7, 23: 1, 24: 64, 25: 31 } },
+  ];
+  if (bank.programs.length !== expected.length) {
+    throw new Error(`Mapping7 has ${bank.programs.length} programs.`);
+  }
+  bank.programs.forEach((program, slot) => {
+    const change = expected[slot];
+    if (program.name !== change.name) {
+      throw new Error(`Mapping7 slot ${slot} is named ${program.name}.`);
     }
     program.params.forEach((value, index) => {
       const wanted = index in change.changes ? change.changes[index] : baseline[index];
