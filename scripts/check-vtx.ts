@@ -146,6 +146,7 @@ assertMapping3File();
 assertMapping4File();
 assertMapping5File();
 assertMapping7File();
+assertMapping8File();
 
 console.log(`Round-tripped ${files.length} banks, ${library.length} programs.`);
 console.log(scooped.notes.join(" "));
@@ -393,6 +394,51 @@ function assertMapping7File() {
     const change = expected[slot];
     if (program.name !== change.name) {
       throw new Error(`Mapping7 slot ${slot} is named ${program.name}.`);
+    }
+    program.params.forEach((value, index) => {
+      const wanted = index in change.changes ? change.changes[index] : baseline[index];
+      if (value !== wanted) {
+        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
+      }
+    });
+  });
+}
+
+/**
+ * Mapping8 changes one control in each region from the baseline chain.
+ * Chorus speed writes bytes 16 and 17 together. Flanger speed 100/0 is the
+ * 0.100 Hz floor. The untouched opening pair 200/0 is not that floor.
+ */
+function assertMapping8File() {
+  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping8.vtxprog")));
+  const bank = parseVtx(original);
+  if (!bytesEqual(original, writeVtx(bank))) {
+    throw new Error("Mapping8.vtxprog did not round-trip.");
+  }
+  const baseline = [
+    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
+    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
+  ];
+  const expected: { name: string; changes: Record<number, number> }[] = [
+    { name: "Ch5 Ph9 B800", changes: { 1: 6, 2: 10, 15: 1, 16: 136, 17: 19, 23: 1, 24: 40, 25: 35 } },
+    { name: "Ch8 O1S BMt", changes: { 1: 6, 2: 17, 15: 1, 16: 64, 17: 31, 23: 2, 24: 16, 25: 39 } },
+    { name: "Ch10 O1R OR2", changes: { 1: 6, 2: 18, 15: 1, 16: 16, 17: 39, 23: 2, 24: 100, 26: 100 } },
+    { name: "ChD O1M OCl", changes: { 1: 6, 2: 19, 15: 1, 18: 100, 23: 2, 24: 100, 27: 100 } },
+    { name: "ChM O1D", changes: { 1: 6, 15: 1, 19: 100, 23: 2, 24: 100, 28: 100 } },
+    { name: "ChMix FlF", changes: { 1: 6, 15: 1, 20: 100, 24: 100 } },
+    { name: "Gld Fl1", changes: { 1: 6, 15: 3, 24: 232, 25: 3 } },
+    { name: "Fuz Fl2", changes: { 1: 6, 15: 9, 24: 208, 25: 7 } },
+    { name: "Fl3", changes: { 1: 4, 24: 184, 25: 11 } },
+    { name: "Fl5", changes: { 1: 4, 24: 136, 25: 19 } },
+    { name: "FlD", changes: { 1: 4, 26: 100 } },
+  ];
+  if (bank.programs.length !== expected.length) {
+    throw new Error(`Mapping8 has ${bank.programs.length} programs.`);
+  }
+  bank.programs.forEach((program, slot) => {
+    const change = expected[slot];
+    if (program.name !== change.name) {
+      throw new Error(`Mapping8 slot ${slot} is named ${program.name}.`);
     }
     program.params.forEach((value, index) => {
       const wanted = index in change.changes ? change.changes[index] : baseline[index];
