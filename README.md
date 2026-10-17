@@ -4,7 +4,7 @@ Edit VOX Tone Room `.vtxprog` banks for the VT20X, VT40X, and VT100X. Describe a
 
 Vtx Bench is not affiliated with VOX or Korg.
 
-This repository stays private until the pedal-knob map is finished. Do not make it public yet.
+The editor source is separate from the example banks in `public/banks`. Those banks stay credited to Marcos Moura under the Beerware terms in Example banks.
 
 ## Run
 
@@ -40,7 +40,7 @@ A `.vtxprog` starts with the 12-character header `VTXPROG1000 `, padded to 32 by
 | 1 | Pedal 1 enable adds 2. Pedal 2 enable adds 4. Reverb enable adds 16. | Yes |
 | 2 | Amp model, 0 through 19, in the Tone Room list order. | Yes, every model |
 | 3–6 | Gain, treble, middle, bass. | Yes |
-| 7–8 | Left at 50 and 20 in every Mapping7 program. | Not moved in Mapping7 |
+| 7–8 | Left at 50 and 20 in Mapping7, Mapping8, and Mapping9. | Not moved in those files |
 | 9 | Resonance. 75 is 7.5. Mapping7 stores 100. | Yes, Mapping7 |
 | 10 | Bright cap, 0 off, 1 on. | Yes |
 | 11 | Low cut, 0 off, 1 on. | Yes |
@@ -64,7 +64,7 @@ Pedal 2, in stored order: Flanger, Blk Phaser, Org Phaser 1, Org Phaser 2, Tremo
 
 Tube OD is the panel’s green overdrive, Orange Dist is the panel’s distortion, and Tape Echo is the panel’s delay. The other types are Tone Room types. A user program still plays them. The panel’s effect selector offers four types per pedal, and its amp knob has eleven positions. The other amp models can be saved into a user program or into USER A, B, or C.
 
-Presence and resonance are VT40X amp controls. Presence boosts the high end, and on some models that same control cuts highs. Resonance boosts the low end and keeps it tight.
+On some amps the control that reads 2.0 is labeled Presence. Resonance is the control that reads 7.5. Mapping7 stores 100 in byte 9 and leaves bytes 7 and 8 at 50 and 20. Mapping8 and Mapping9 leave bytes 7, 8, and 9 at 50, 20, and 75.
 
 ## Pedal knobs
 
@@ -112,8 +112,10 @@ Presence and resonance are VT40X amp controls. Presence boosts the high end, and
 
 ## Checks
 
-`npm run check` reads every bank in `public/banks` and the mapping fixtures, writes each file back, and requires the bytes to match. It also checks the confirmed type ids, the class byte on the example banks, and a few tone descriptions. Mapping7 is the file that stores class AB on VOX AC30. The script does not launch Tone Room, and it does not play a program through an amp.
+`npm run check` reads every bank in `public/banks` and the mapping fixtures, writes each file back, and requires the bytes to match. Mapping7, Mapping8, and Mapping9 lock the bytes those files stored, including FlM, which sets flanger manual byte 27 to 100 and also sets speed byte 24 to 100. The AC30 class check applies to the example banks. Mapping7 is the fixture that stores class AB on VOX AC30. The script does not launch Tone Room, and it does not play a program through an amp.
 
 ## Example banks
 
-The banks in `public/banks` are Marcos Moura’s Tone Room programs, shared as Beerware. If you pass those files on, keep the credit: he wrote them, and you owe him a beer if you meet him. Those terms stay with the banks. They are not covered by any license you add for the editor source.
+The editor source and these banks are separate.
+
+The banks in `public/banks` are Marcos Moura’s Tone Room programs, shared as Beerware. If you pass those files on, keep the credit: he wrote them, and you owe him a beer if you meet him. Those terms stay with the banks. This project does not relicense them. They are not covered by any license on the editor source.
