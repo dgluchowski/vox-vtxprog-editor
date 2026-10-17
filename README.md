@@ -82,6 +82,14 @@ Presence and resonance are VT40X amp controls. Presence boosts the high end, and
 - Black phaser resonance is byte 26, manual is byte 27, and depth is byte 28.
 - Tremolo speed and black phaser speed are the exception. Setting either one to 10 stores 16 in byte 24 and 39 in byte 25. The programs that left speed alone do not share one default: tremolo sits at 114 and 6, and black phaser sits at 100 and 0.
 
+`fixtures/Mapping9.vtxprog` turns pedal 2 on and edits one pedal-2 control. Pedal 1 stays comp and off. The amp stays VOX AC30. Reverb stays off.
+
+- Flanger resonance to 10 stores 100 in byte 30. That program leaves speed at 200 and 0, depth at 50, and manual at 77.
+- Flanger manual to 10 stores 100 in byte 27. That same program also stores 100 in speed byte 24 and leaves byte 25 at 0. Depth stays 50 and resonance stays 35.
+- Analog delay time is a little-endian millisecond count in bytes 24 and 25. 100 ms is 100 and 0. 255 ms is 255 and 0. 300 ms is 44 and 1. 1200 ms is 176 and 4. Selecting the type sets 30 ms as 30 and 0.
+- Delay level, feedback, and tone to 10 store 100 in bytes 26, 27, and 28. Those programs leave time at 30 and 0. Mod speed stays 1 and mod depth stays 35.
+- Org Phaser 2 is type 3 and sets the speed bytes to 100 and 0. Tape Echo is type 5 and sets the time bytes to 30 and 0. Neither program sets another knob to 100.
+
 Drive pedals still share gain, tone, level, treble, middle, and bass. Those bytes move in real programs, and the order matches the manual. They have not been moved one knob at a time.
 
 ## Checks
