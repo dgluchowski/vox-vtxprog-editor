@@ -147,6 +147,7 @@ assertMapping4File();
 assertMapping5File();
 assertMapping7File();
 assertMapping8File();
+assertMapping9File();
 
 console.log(`Round-tripped ${files.length} banks, ${library.length} programs.`);
 console.log(scooped.notes.join(" "));
@@ -439,6 +440,51 @@ function assertMapping8File() {
     const change = expected[slot];
     if (program.name !== change.name) {
       throw new Error(`Mapping8 slot ${slot} is named ${program.name}.`);
+    }
+    program.params.forEach((value, index) => {
+      const wanted = index in change.changes ? change.changes[index] : baseline[index];
+      if (value !== wanted) {
+        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
+      }
+    });
+  });
+}
+
+/**
+ * Mapping9 changes one pedal-2 control from the baseline chain.
+ * Delay time is a little-endian millisecond count in bytes 24 and 25.
+ * FlM also moves speed byte 24 to 100. That pair is not the manual edit.
+ */
+function assertMapping9File() {
+  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping9.vtxprog")));
+  const bank = parseVtx(original);
+  if (!bytesEqual(original, writeVtx(bank))) {
+    throw new Error("Mapping9.vtxprog did not round-trip.");
+  }
+  const baseline = [
+    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
+    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
+  ];
+  const expected: { name: string; changes: Record<number, number> }[] = [
+    { name: "FlM", changes: { 1: 4, 24: 100, 27: 100 } },
+    { name: "FlR", changes: { 1: 4, 30: 100 } },
+    { name: "D100", changes: { 1: 4, 23: 6, 24: 100 } },
+    { name: "D300", changes: { 1: 4, 23: 6, 24: 44, 25: 1 } },
+    { name: "D1200", changes: { 1: 4, 23: 6, 24: 176, 25: 4 } },
+    { name: "D255", changes: { 1: 4, 23: 6, 24: 255 } },
+    { name: "DLv", changes: { 1: 4, 23: 6, 24: 30, 26: 100 } },
+    { name: "DFb", changes: { 1: 4, 23: 6, 24: 30, 27: 100 } },
+    { name: "DTn", changes: { 1: 4, 23: 6, 24: 30, 28: 100 } },
+    { name: "OP2", changes: { 1: 4, 23: 3, 24: 100 } },
+    { name: "Tap", changes: { 1: 4, 23: 5, 24: 30 } },
+  ];
+  if (bank.programs.length !== expected.length) {
+    throw new Error(`Mapping9 has ${bank.programs.length} programs.`);
+  }
+  bank.programs.forEach((program, slot) => {
+    const change = expected[slot];
+    if (program.name !== change.name) {
+      throw new Error(`Mapping9 slot ${slot} is named ${program.name}.`);
     }
     program.params.forEach((value, index) => {
       const wanted = index in change.changes ? change.changes[index] : baseline[index];

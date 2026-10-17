@@ -102,6 +102,14 @@ Presence and resonance are VT40X amp controls. Presence boosts the high end, and
 - Gold Drive is type 3 and Fuzz is type 9. Those programs change the type byte and leave bytes 16–22 at the baseline.
 - Brit 800, Boutique Metal, Brit OR MkII, and Original Clean store amp ids 10, 17, 18, and 19. Byte 14 stays 0. Bytes 7, 8, and 9 stay 50, 20, and 75.
 
+`fixtures/Mapping9.vtxprog` turns pedal 2 on and edits one pedal-2 control. Pedal 1 stays comp and off. The amp stays VOX AC30. Reverb stays off.
+
+- Flanger resonance to 10 stores 100 in byte 30. That program leaves speed at 200 and 0, depth at 50, and manual at 77.
+- Flanger manual to 10 stores 100 in byte 27. That same program also stores 100 in speed byte 24 and leaves byte 25 at 0. Depth stays 50 and resonance stays 35.
+- Analog delay time is a little-endian millisecond count in bytes 24 and 25. 100 ms is 100 and 0. 255 ms is 255 and 0. 300 ms is 44 and 1. 1200 ms is 176 and 4. Selecting the type sets 30 ms as 30 and 0.
+- Delay level, feedback, and tone to 10 store 100 in bytes 26, 27, and 28. Those programs leave time at 30 and 0. Mod speed stays 1 and mod depth stays 35.
+- Org Phaser 2 is type 3 and sets the speed bytes to 100 and 0. Tape Echo is type 5 and sets the time bytes to 30 and 0. Neither program sets another knob to 100.
+
 ## Checks
 
 `npm run check` reads every bank in `public/banks` and the mapping fixtures, writes each file back, and requires the bytes to match. It also checks the confirmed type ids, the class byte on the example banks, and a few tone descriptions. Mapping7 is the file that stores class AB on VOX AC30. The script does not launch Tone Room, and it does not play a program through an amp.
