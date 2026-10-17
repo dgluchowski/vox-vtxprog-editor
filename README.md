@@ -82,6 +82,16 @@ Presence and resonance are VT40X amp controls. Presence boosts the high end, and
 - Black phaser resonance is byte 26, manual is byte 27, and depth is byte 28.
 - Tremolo speed and black phaser speed are the exception. Setting either one to 10 stores 16 in byte 24 and 39 in byte 25. The programs that left speed alone do not share one default: tremolo sits at 114 and 6, and black phaser sits at 100 and 0.
 
+`fixtures/Mapping8.vtxprog` changes one control in each region from that same chain. Pedal 1 and pedal 2 on store 6. Pedal 2 on alone stores 4.
+
+- Chorus speed uses bytes 16 and 17. Speed 5 stores 136 and 19. Speed 8 stores 64 and 31. Speed 10 stores 16 and 39. Programs that leave chorus speed alone keep 50 and 0. Byte 17 moves only as the high byte of that speed pair.
+- `ChD O1M OCl` sets byte 18 to 100, replacing 67. `ChM O1D` sets byte 19 to 100, replacing 57. `ChMix FlF` sets byte 20 to 100, replacing 1, and leaves 67 and 57 in place. Each of those programs changes one pedal-1 byte. Low cut and high cut stay 0.
+- Black phaser speed 9 stores 40 and 35 in bytes 24 and 25.
+- Org Phaser 1 is type 2. Speed 10 stores 16 and 39. Resonance, manual, and depth to 10 store 100 in bytes 26, 27, and 28. Leaving its speed at 0.100 Hz stores 100 and 0.
+- Flanger speed 1, 2, 3, and 5 store 232/3, 208/7, 184/11, and 136/19. The floor stores 100 and 0. Depth to 10 sets byte 26 to 100 and leaves speed at 200 and 0. That 200/0 pair is the opening value, 0.200 Hz, not the 0.100 Hz floor.
+- Gold Drive is type 3 and Fuzz is type 9. Those programs change the type byte and leave bytes 16–22 at the baseline.
+- Brit 800, Boutique Metal, Brit OR MkII, and Original Clean store amp ids 10, 17, 18, and 19. Byte 14 stays 0. Bytes 7, 8, and 9 stay 50, 20, and 75.
+
 Drive pedals still share gain, tone, level, treble, middle, and bass. Those bytes move in real programs, and the order matches the manual. They have not been moved one knob at a time.
 
 ## Checks
