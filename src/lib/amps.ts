@@ -10,19 +10,18 @@ export type AmpModel = {
 
 /**
  * Tone Room's 20 amp models, in stored order.
- * Ids that appear in a saved program are marked observed. The two mapping
- * files confirm every model, including Erupt III CH3.
+ * The mapping fixtures lock every id from 0 through 19.
  */
 export const AMPS: AmpModel[] = [
   { id: 0, name: "Deluxe CL Vibrato", basedOn: "22W blackface combo, vibrato channel", observed: true, onPanel: true },
   { id: 1, name: "Deluxe CL Normal", basedOn: "Same combo, normal channel", observed: true, onPanel: false },
   { id: 2, name: "Tweed 4x10 Bright", basedOn: "1959 4×10 combo, bright channel", observed: true, onPanel: true },
   { id: 3, name: "Tweed 4x10 Normal", basedOn: "Same 4×10 combo, normal channel", observed: true, onPanel: false },
-  { id: 4, name: "Boutique CL", basedOn: "Overdrive Special, clean channel. Factory USER A", observed: true, onPanel: true },
+  { id: 4, name: "Boutique CL", basedOn: "Overdrive Special, clean channel", observed: true, onPanel: true },
   { id: 5, name: "Boutique OD", basedOn: "Overdrive Special, overdrive channel", observed: true, onPanel: true },
   { id: 6, name: "VOX AC30", basedOn: "AC30 normal channel", observed: true, onPanel: true },
   { id: 7, name: "VOX AC30TB", basedOn: "1964 AC30 with the top boost circuit", observed: true, onPanel: true },
-  { id: 8, name: "Brit 1959 Treble", basedOn: "Early-60s 100W head, treble channel. Factory USER B", observed: true, onPanel: true },
+  { id: 8, name: "Brit 1959 Treble", basedOn: "Early-60s 100W head, treble channel", observed: true, onPanel: true },
   { id: 9, name: "Brit 1959 Normal", basedOn: "Same head, normal channel", observed: true, onPanel: false },
   { id: 10, name: "Brit 800", basedOn: "1983 British 100W head with master volume", observed: true, onPanel: true },
   { id: 11, name: "Brit VM", basedOn: "2007 100W head, Overdrive 2 channel", observed: true, onPanel: false },
@@ -31,7 +30,7 @@ export const AMPS: AmpModel[] = [
   { id: 14, name: "Cali Elation", basedOn: "North Hollywood 100W head, class A or AB", observed: true, onPanel: false },
   { id: 15, name: "Erupt III CH2", basedOn: "Three-channel brown-sound head, crunch channel", observed: true, onPanel: false },
   { id: 16, name: "Erupt III CH3", basedOn: "Same head, high-gain channel", observed: true, onPanel: false },
-  { id: 17, name: "Boutique Metal", basedOn: "German 100W head, Heavy channel. Factory USER C", observed: true, onPanel: true },
+  { id: 17, name: "Boutique Metal", basedOn: "German 100W head, Heavy channel", observed: true, onPanel: true },
   { id: 18, name: "Brit OR MkII", basedOn: "British 100W head with tube spring reverb", observed: true, onPanel: true },
   { id: 19, name: "Original Clean", basedOn: "VOX original clean voicing", observed: true, onPanel: false },
 ];

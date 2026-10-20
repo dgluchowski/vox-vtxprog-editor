@@ -24,7 +24,7 @@ import {
   parseVtx,
   setParam,
   slotLabel,
-  standardClean,
+  blankProgram,
   writeVtx,
   type Bank,
   type Program,
@@ -147,10 +147,10 @@ export function Bench() {
   }
 
   function newBank() {
-    setBank({ programs: Array.from({ length: 8 }, () => standardClean()) });
+    setBank({ programs: Array.from({ length: 8 }, () => blankProgram()) });
     setActive(0);
     setFileName("new-bank.vtxprog");
-    setNotes(["Eight Standard Clean slots. Write a tone into the channel you want to keep."]);
+    setNotes(["Eight empty slots. Write a tone into the channel you want to keep."]);
     setError(null);
   }
 
@@ -384,7 +384,7 @@ export function Bench() {
                       {ampById(program.params[2]).basedOn}
                       {ampById(program.params[2]).onPanel
                         ? ""
-                        : " Tone Room model. A user program, or USER A/B/C, carries it on the amp."}
+                        : " Tone Room model. A user program carries it. The user bank is eight slots, A-1 through B-4."}
                     </p>
                   </Field>
                   <Field label="Bias">
@@ -676,7 +676,7 @@ function HelpDialog() {
             The extra pedal types are in the program, and the amp plays them when that
             user program is loaded. The panel’s effect selector still only offers four
             types per pedal, and its amp knob has eleven positions. The other amp models
-            can be saved into a user program or into USER A, B, or C.
+            can be saved into a user program. The user bank is eight slots, A-1 through B-4.
           </p>
           <p>
             Pedal names follow the Tone Room 1.4 list: Comp, Chorus, Tube OD, Gold Drive,

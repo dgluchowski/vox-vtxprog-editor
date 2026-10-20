@@ -20,14 +20,14 @@ export class VtxError extends Error {
   }
 }
 
-/** Factory-style clean used as an empty slot. Taken from the repeated "Standard Clean 1" program. */
-export const STANDARD_CLEAN_PARAMS: readonly number[] = [
+/** Bytes the editor writes into a new eight-program bank. */
+export const BLANK_SLOT_PARAMS: readonly number[] = [
   24, 16, 0, 35, 61, 71, 60, 9, 0, 60, 1, 0, 0, 0, 1, 1, 0, 3, 48, 36, 50, 0, 0,
   5, 117, 0, 33, 50, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 38, 45, 0, 36, 25, 0,
 ];
 
-export function standardClean(name = "Standard Clean 1"): Program {
-  return { name, params: [...STANDARD_CLEAN_PARAMS] };
+export function blankProgram(name = "Empty"): Program {
+  return { name, params: [...BLANK_SLOT_PARAMS] };
 }
 
 export function cloneProgram(program: Program): Program {
