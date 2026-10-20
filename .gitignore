@@ -42,3 +42,10 @@ next-env.d.ts
 
 # local copies of the uploaded examples
 /uploads
+
+# editor and agent junk
+CLAUDE.md
+.claude/
+*.swp
+*.swo
+*~

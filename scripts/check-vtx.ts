@@ -364,6 +364,9 @@ function assertMapping5File() {
 /**
  * Mapping7 changes one control in each region from the baseline chain.
  * Chorus speed 2 writes bytes 16 and 17 together. That pair is the speed edit.
+ * Ch0 stores byte 16 as 100 and byte 17 as 0. A knob at 10 also stores 100.
+ * Damian has not confirmed that chorus speed was at its minimum, so the 100/0
+ * lock is unverified as a floor.
  */
 function assertMapping7File() {
   const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping7.vtxprog")));
@@ -453,7 +456,9 @@ function assertMapping8File() {
 /**
  * Mapping9 changes one pedal-2 control from the baseline chain.
  * Delay time is a little-endian millisecond count in bytes 24 and 25.
- * FlM also moves speed byte 24 to 100. That pair is not the manual edit.
+ * FlM stores manual byte 27 as 100 and also moves speed from 200/0 to 100/0.
+ * Depth byte 26 stays 50 and resonance byte 30 stays 35, so byte 27 is still
+ * the manual edit. FlM is not a single-variable preset.
  */
 function assertMapping9File() {
   const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping9.vtxprog")));
