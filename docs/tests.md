@@ -11,14 +11,11 @@ npm run typecheck
 
 ## What `npm run check` does
 
-1. Reads every `.vtxprog` in `public/banks`.
-2. Requires the file count to match `BUNDLED_BANKS` in `src/lib/banks.ts`.
-3. Parses each bank and writes it back with `writeVtx`. The output has to match the input byte for byte.
-4. Checks the example programs against the ranges the editor already uses (amp id 0–19, pedal type ids, the three known enable bits, reverb type, and a few knob ceilings).
-5. Runs the same parse/write round trip on each mapping fixture, then compares every parameter byte with the array in `assertMappingFile` through `assertMapping9File`.
-6. Shapes a handful of tone descriptions and checks the program those descriptions produce.
+1. Runs the parse/write round trip on each mapping fixture, then compares every parameter byte with the array in `assertMappingFile` through `assertMapping9File`.
+2. Shapes a handful of tone descriptions from a blank program and checks the program those descriptions produce.
+3. Rejects a file that is too short to be a bank.
 
-The script does not launch Tone Room, and it does not send a program to an amp.
+The script reads the eight mapping fixtures and no other `.vtxprog` file. It does not launch Tone Room, and it does not send a program to an amp.
 
 ## What a passing check is
 

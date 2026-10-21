@@ -1,17 +1,15 @@
 # Project structure
 
 ```
-README.md                 What the project is, how to run it, Beerware credit
+README.md                 What the project is, how to run it, which preset files are included
 docs/                     Format, experiments, tests, this layout
 fixtures/                 Eight mapping banks, Mapping through Mapping5 and Mapping7–9
-public/banks/             Marcos Moura’s example banks (Beerware)
 scripts/check-vtx.ts      Byte-exact round trip and fixture locks
 src/app/                  Next.js page
 src/components/bench.tsx  The editor
 src/lib/vtx.ts            parseVtx / writeVtx
 src/lib/amps.ts           Amp ids, pedal types, knob indexes the bench uses
 src/lib/tone.ts           Tone-description shaping
-src/lib/banks.ts          Example-bank list
 package.json              npm run dev, check, typecheck
 ```
 

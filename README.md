@@ -35,8 +35,14 @@ npm run typecheck
 
 Gaps are listed in the [Still open](docs/format.md#still-open) section of the format note.
 
-## Example banks
+## Preset files
 
-The editor source and the banks in `public/banks` are separate.
+The `.vtxprog` files in this repo are Damian’s Tone Room captures under `fixtures/`:
 
-Those banks are Marcos Moura’s Tone Room programs, shared as Beerware. If you pass those files on, keep the credit: he wrote them, and you owe him a beer if you meet him. Those terms stay with the banks. This project does not relicense them. There is no license file on the editor source.
+- `Mapping.vtxprog`
+- `Mapping2.vtxprog` through `Mapping5.vtxprog`
+- `Mapping7.vtxprog` through `Mapping9.vtxprog`
+
+Each one is a controlled mapping bank. None of them is a VOX factory bank.
+
+No official VOX amp or Tone Room factory bank is in this repo. The Tone Room install’s `USERBANK.vtxprog` is eight user slots named USER A-1 through USER B-4, and it is not included. Other USERBANK formats are not included either.

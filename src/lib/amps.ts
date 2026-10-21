@@ -2,7 +2,7 @@ export type AmpModel = {
   id: number;
   name: string;
   basedOn: string;
-  /** Present in the example banks, so the id was read off a real program. */
+  /** Stored by a named program in the mapping fixtures. */
   observed: boolean;
   /** Dedicated position on the VT20X/VT40X/VT100X amp-model knob. */
   onPanel: boolean;
@@ -58,7 +58,7 @@ const ON_OFF = [
   { id: 1, name: "On" },
 ];
 
-/** Byte 1. These three bits are the only values the example programs use. */
+/** Byte 1. Pedal 1 on adds 2, pedal 2 on adds 4, reverb on adds 16. */
 export const PEDAL1_ENABLE = 2;
 export const PEDAL2_ENABLE = 4;
 export const REVERB_ENABLE = 16;
