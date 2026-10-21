@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AMPS,
   AMP_CLASS,
@@ -20,11 +20,9 @@ import {
   withKnob,
   type EffectKnob,
 } from "@/lib/amps";
-import { BUNDLED_BANKS } from "@/lib/banks";
-import { SUGGESTIONS, describeProgram, shapeTone, type ToneSource } from "@/lib/tone";
+import { SUGGESTIONS, describeProgram, shapeTone } from "@/lib/tone";
 import {
   VtxError,
-  cloneProgram,
   downloadName,
   parseVtx,
   setParam,
@@ -56,62 +54,28 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 export function Bench() {
-  const [library, setLibrary] = useState<ToneSource[]>([]);
-  const [bank, setBank] = useState<Bank | null>(null);
+  const [bank, setBank] = useState<Bank | null>({
+    programs: Array.from({ length: 8 }, () => blankProgram()),
+  });
   const [active, setActive] = useState(0);
-  const [fileName, setFileName] = useState("Mateus_Asato.vtxprog");
+  const [fileName, setFileName] = useState("new-bank.vtxprog");
   const [prompt, setPrompt] = useState(SUGGESTIONS[0].prompt);
-  const [notes, setNotes] = useState<string[]>([]);
+  const [notes, setNotes] = useState<string[]>([
+    "Eight empty slots. Write a tone into the channel you want to keep.",
+  ]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let cancel = false;
-    (async () => {
-      try {
-        const loaded = await Promise.all(
-          BUNDLED_BANKS.map(async (entry) => {
-            const response = await fetch(`/banks/${entry.file}`);
-            if (!response.ok) throw new Error(`Could not read ${entry.title}.`);
-            const parsed = parseVtx(new Uint8Array(await response.arrayBuffer()));
-            return parsed.programs.map((program, slot) => ({
-              bankTitle: entry.title,
-              slot,
-              program,
-            }));
-          }),
-        );
-        if (cancel) return;
-        const nextLibrary = loaded.flat();
-        const mateus = nextLibrary
-          .filter((source) => source.bankTitle === "Mateus Asato")
-          .sort((a, b) => a.slot - b.slot);
-        setLibrary(nextLibrary);
-        setBank({ programs: mateus.map((source) => cloneProgram(source.program)) });
-        setLoading(false);
-      } catch (caught) {
-        if (cancel) return;
-        setError(caught instanceof Error ? caught.message : "Could not read the example banks.");
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, []);
 
   const program = bank?.programs[active] ?? null;
 
   const sources = useMemo(() => {
-    if (!bank) return library;
-    const current = bank.programs.map((item, slot) => ({
+    if (!bank) return [];
+    return bank.programs.map((item, slot) => ({
       bankTitle: fileName.replace(/\.vtxprog$/i, ""),
       slot,
       program: item,
     }));
-    return [...current, ...library];
-  }, [bank, fileName, library]);
+  }, [bank, fileName]);
 
   function update(mutator: (program: Program) => Program) {
     setBank((current) => {
@@ -140,19 +104,6 @@ export function Bench() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not shape that tone.");
     }
-  }
-
-  function loadExample(title: string) {
-    const programs = library
-      .filter((source) => source.bankTitle === title)
-      .sort((a, b) => a.slot - b.slot)
-      .map((source) => cloneProgram(source.program));
-    if (programs.length === 0) return;
-    setBank({ programs });
-    setActive(0);
-    setFileName(downloadName(title));
-    setNotes([`Opened the ${title} bank. ${programs.length} programs.`]);
-    setError(null);
   }
 
   function newBank() {
@@ -242,14 +193,11 @@ export function Bench() {
           </p>
         ) : null}
 
-        {loading ? (
-          <p className="text-sm text-[oklch(0.82_0.02_85)]">Reading the example banks…</p>
-        ) : !bank || !program ? (
+        {!bank || !program ? (
           <div className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-[oklch(0.9_0.02_90)]">
             <p>No bank is open.</p>
             <p className="mt-1 text-[oklch(0.78_0.02_85)]">
-              Open a .vtxprog file, start a new 8-channel bank, or pick an example once the
-              library has loaded.
+              Open a .vtxprog file, or start a new 8-channel bank.
             </p>
           </div>
         ) : (
@@ -262,7 +210,7 @@ export function Bench() {
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   rows={5}
-                  placeholder="Scooped high gain, tight, in the vein of System of a Down"
+                  placeholder="Scooped high gain, tight, spring reverb"
                 />
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -292,33 +240,6 @@ export function Bench() {
                   ))}
                 </ul>
               ) : null}
-              <div className="space-y-2 border-t border-border pt-3">
-                <Label>Example bank</Label>
-                <Select
-                  value={
-                    BUNDLED_BANKS.find((entry) => downloadName(entry.title) === fileName)?.title ??
-                    null
-                  }
-                  items={BUNDLED_BANKS.map((entry) => ({
-                    value: entry.title,
-                    label: entry.title,
-                  }))}
-                  onValueChange={(value) => {
-                    if (value) loadExample(value);
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Load an example" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BUNDLED_BANKS.map((entry) => (
-                      <SelectItem key={entry.file} value={entry.title}>
-                        {entry.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </aside>
 
             <section className="flex min-w-0 flex-col gap-4">
@@ -531,8 +452,8 @@ export function Bench() {
         )}
 
         <footer className="text-xs leading-relaxed text-[oklch(0.75_0.02_80)]">
-          Example banks are Marcos Moura’s Tone Room programs, shared as Beerware. Keep that
-          credit if you pass the files on. Vtx Bench is not affiliated with VOX or Korg.
+          Vtx Bench is not affiliated with VOX or Korg. Open your own Tone Room bank, or start
+          from the eight empty slots.
         </footer>
       </div>
     </div>

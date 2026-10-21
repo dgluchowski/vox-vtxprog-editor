@@ -5,15 +5,13 @@ README.md                 Measured layout of the VT .vtxprog bank
 docs/format.md            Parameter spec
 docs/tests.md             How to run the check
 docs/structure.md         This layout
-public/banks/             Example banks that ship with the editor
-scripts/check-vtx.ts      Round trip and synthetic parameter locks
+scripts/check-vtx.ts      Synthetic parameter locks
 src/app/                  Next.js page
 src/components/bench.tsx  The editor
 src/components/knob.tsx   Knob control
 src/lib/vtx.ts            parseVtx / writeVtx
 src/lib/amps.ts           Amp ids, pedal knobs, the bytes the editor writes
 src/lib/tone.ts           Tone-description shaping
-src/lib/banks.ts          Example-bank list
 package.json              npm run dev, check, typecheck
 ```
 

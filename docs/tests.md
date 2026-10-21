@@ -9,7 +9,7 @@ npm run typecheck
 
 `npm run check` runs `scripts/check-vtx.ts` with `tsx`. `npm run typecheck` runs `tsc --noEmit`.
 
-The script round-trips every `.vtxprog` in `public/banks`, checks that the file count matches `BUNDLED_BANKS`, and checks a few tone descriptions against those programs. It then builds synthetic programs in code and checks the bytes the editor writes:
+The script shapes a few tone descriptions from a blank program, rejects a file that is too short to be a bank, and builds synthetic programs that lock the bytes the editor writes:
 
 - Parameters 7, 8, and 9 are volume, tone/presence, and resonance.
 - Chorus speed is little-endian millihertz at 16–17. Depth, manual, and mix are 18, 19, and 20.

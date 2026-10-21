@@ -57,24 +57,24 @@ const AMP_HINTS: AmpHint[] = [
 
 export const SUGGESTIONS: { label: string; prompt: string }[] = [
   {
-    label: "Asato gloss",
-    prompt: "Mateus Asato, pristine clean, room reverb",
+    label: "Pristine clean",
+    prompt: "pristine clean, room reverb",
   },
   {
-    label: "Arctic grit",
-    prompt: "Do I Wanna Know, gritty clean, a little darker",
+    label: "Gritty clean",
+    prompt: "gritty clean, a little darker",
   },
   {
     label: "Scooped metal",
-    prompt: "System of a Down, scooped high gain, tight",
+    prompt: "scooped high gain, tight",
   },
   {
     label: "AC30 chime",
     prompt: "AC30 chime, edge of breakup, spring reverb",
   },
   {
-    label: "Brian May",
-    prompt: "Brian May crunch, a bit brighter",
+    label: "Bright crunch",
+    prompt: "crunch, a bit brighter",
   },
   {
     label: "Plexi rhythm",
