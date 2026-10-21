@@ -1,42 +1,84 @@
-# Vtx Bench
+# `.vtxprog`
 
-Vtx Bench reads and writes VOX Tone Room `.vtxprog` banks for the VT20X, VT40X, and VT100X. Open a bank, move the knobs or describe a tone, and download a file Tone Room can open. Parsing and saving happen in the browser.
+A `.vtxprog` file is a VOX Tone Room program bank for the VT20X, VT40X, and VT100X. Other amp families, and the other Tone Room file extensions, are future work. This project is not affiliated with VOX or Korg.
 
-This project is not affiliated with VOX or Korg.
+## Abstract
 
-The format work here is the `.vtxprog` bank for those three amps. Other amp families and other Tone Room file extensions are future work.
+The bank is a 32-byte header followed by 62-byte programs. Each program holds a 16-byte name and 46 parameter bytes. Knobs marked 0–10 are stored times ten, so 10 is 100. Modulation speed is an unsigned little-endian millihertz count, and delay time is an unsigned little-endian millisecond count. Parameter 7 is the knob that reads 5.0 (Volume on AC30). Parameter 8 is the knob that reads 2.0 (Tone on AC30 and AC30TB, Presence on the other models). Parameter 9 is the knob that reads 7.5 (Resonance). Chorus speed is parameters 16 and 17; depth, manual, and mix are 18, 19, and 20. Pedal 2 speed and delay time are parameters 24 and 25. A handful of bytes have no assigned control.
 
-## Run
+## Method
+
+Each assignment comes from a Tone Room save that moved one control and left the rest of that region alone, apart from the pedal or reverb setup that control needs.
+
+## File layout
+
+The first 32 bytes are the header. Bytes 0–11 are the constant `VTXPROG1000 ` (the last character is a space). Bytes 12–31 are a 20-byte pad. Programs follow, packed back to back, 62 bytes each. The program count is `(file length − 32) / 62`.
+
+## Program layout
+
+Bytes 0–15 of a program are the name, space-padded. Bytes 16–61 are the 46 parameters. Parameter N is program byte 16+N.
+
+A 0–10 knob stores that position times ten. Pre-delay is the exception: its maximum stores 70. Switches store 0 or 1. Amp, pedal, reverb, bias, and class store ids.
+
+Modulation speed (chorus, flanger, phaser, tremolo) is little-endian millihertz. 0.100 Hz is 100 and 0. 1 Hz is 232 and 3. 1.650 Hz is 114 and 6. 2 Hz is 208 and 7. 10 Hz is 16 and 39. Delay time is little-endian milliseconds. 100 ms is 100 and 0. 300 ms is 44 and 1. 1200 ms is 176 and 4.
+
+## Parameters
+
+| Parameter | Control |
+| --- | --- |
+| 0 | Noise reduction |
+| 1, +2 | Pedal 1 on |
+| 1, +4 | Pedal 2 on |
+| 1, +16 | Reverb on |
+| 2 | Amp model, ids 0–19 |
+| 3 | Gain |
+| 4 | Treble |
+| 5 | Middle |
+| 6 | Bass |
+| 7 | The 5.0 knob. Volume on AC30 |
+| 8 | The 2.0 knob. Tone on AC30 and AC30TB, Presence on the other models |
+| 9 | The 7.5 knob. Resonance |
+| 10 | Bright cap. 0 off, 1 on |
+| 11 | Low cut. 0 off, 1 on |
+| 12 | Mid boost. 0 off, 1 on |
+| 13 | Bias. 0 standard, 1 cold, 2 hot |
+| 14 | Power-amp class. 0 class A, 1 class AB |
+| 15 | Pedal 1 type, ids 0–9 |
+| 16 | Comp sensitivity. Drive gain on Tube OD and the other drive types |
+| 16–17 | Chorus speed, little-endian millihertz |
+| 18 | Comp level. Drive tone. Chorus depth |
+| 19 | Comp attack. Drive level. Chorus manual |
+| 20 | Comp voice, stored 0–2. Drive treble. Chorus mix |
+| 21 | Chorus low cut. Drive middle |
+| 22 | Chorus high cut. Drive bass |
+| 23 | Pedal 2 type, ids 0–6 |
+| 24–25 | Pedal 2 speed (millihertz) and delay time (milliseconds), little-endian |
+| 26 | Flanger depth. Phaser resonance. Tremolo depth. Delay level |
+| 27 | Flanger manual. Phaser manual. Tremolo duty. Delay feedback |
+| 28 | Flanger low cut. Phaser depth. Tremolo shape. Delay tone |
+| 29 | Flanger high cut. Tremolo level. Delay mod speed |
+| 30 | Flanger resonance. Delay mod depth |
+| 39 | Reverb type. 0 room, 1 spring, 2 hall, 3 plate |
+| 40 | Reverb mix |
+| 41 | Reverb time |
+| 42 | Reverb pre-delay |
+| 43 | Reverb low damp |
+| 44 | Reverb high damp |
+
+Gold Drive, Treble Boost, RC Turbo, Orange Dist, Fat Dist, Brit Lead, and Fuzz use the Tube OD knob row (parameters 16, 18, 19, 20, 21, and 22). Org Phaser 2 uses the same row as Blk Phaser and Org Phaser 1 (the speed pair, then resonance, manual, and depth). Tape Echo uses the Analog Delay row. Model names and the per-type knob lists are in [docs/format.md](docs/format.md).
+
+Flanger manual is parameter 27. The save that isolated it turned pedal 2 on and moved that byte from 77 to 100. Gain was 100 on every program in that bank, and the speed pair stayed 200, 0.
+
+## Unassigned
+
+Parameter 1 bits 0, 3, 5, 6, and 7 have no Tone Room control. Parameters 31–38 are unassigned. Parameter 45 is unassigned. The 20 header bytes after the magic are an unassigned pad; the files examined store zeros there. The magic itself is the constant above, not a control.
+
+## Check
 
 ```bash
 npm install
-npm run dev
-```
-
-Open [http://127.0.0.1:4178](http://127.0.0.1:4178).
-
-Loading a bank in Tone Room replaces the programs stored on the amp. Export the current bank from Tone Room before sending a new file over.
-
-## Tests
-
-```bash
 npm run check
 npm run typecheck
 ```
 
-`npm run check` is the byte-exact round trip. What that command proves, and what it does not prove, is in [docs/tests.md](docs/tests.md).
-
-## Documentation
-
-- [Format](docs/format.md) — 32-byte header, 62-byte programs, the 20 amp ids, and the parameter bytes the fixtures lock
-- [Experiments](docs/experiments.md) — how the mapping banks were recorded, and the eight fixture files in this repo
-- [Tests](docs/tests.md) — how to run the round trip
-- [Project structure](docs/structure.md)
-
-Gaps are listed in the [Still open](docs/format.md#still-open) section of the format note.
-
-## Example banks
-
-The editor source and the banks in `public/banks` are separate.
-
-Those banks are Marcos Moura’s Tone Room programs, shared as Beerware. If you pass those files on, keep the credit: he wrote them, and you owe him a beer if you meet him. Those terms stay with the banks. This project does not relicense them. There is no license file on the editor source.
+`npm run check` round-trips the editor and builds synthetic programs that lock these byte writes. It does not open Tone Room.

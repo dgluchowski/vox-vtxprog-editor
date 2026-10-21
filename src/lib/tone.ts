@@ -1,4 +1,4 @@
-import { ampById } from "@/lib/amps";
+import { AMP_PARAM, ampById } from "@/lib/amps";
 import { clampKnob, type Program } from "@/lib/vtx";
 
 export type ToneSource = {
@@ -14,16 +14,16 @@ export type ShapedTone = {
 };
 
 const P = {
-  nr: 0,
+  nr: AMP_PARAM.nr,
   character: 1,
   amp: 2,
-  gain: 3,
-  treble: 4,
-  middle: 5,
-  bass: 6,
-  presence: 7,
-  resonance: 8,
-  volume: 9,
+  gain: AMP_PARAM.gain,
+  treble: AMP_PARAM.treble,
+  middle: AMP_PARAM.middle,
+  bass: AMP_PARAM.bass,
+  volume: AMP_PARAM.volume,
+  presence: AMP_PARAM.presence,
+  resonance: AMP_PARAM.resonance,
   bias: 13,
   ampClass: 14,
   reverbType: 39,
@@ -385,6 +385,8 @@ function applyExplicitKnobs(hay: string, params: number[], notes: string[]) {
     ["mid", P.middle],
     ["bass", P.bass],
     ["presence", P.presence],
+    ["tone", P.presence],
+    ["resonance", P.resonance],
     ["volume", P.volume],
     ["nr", P.nr],
     ["noise", P.nr],

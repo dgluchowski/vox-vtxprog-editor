@@ -5,16 +5,22 @@ import { Slider } from "@/components/ui/slider";
 export function Knob({
   label,
   value,
+  min = 0,
   max = 100,
+  format,
   onChange,
 }: {
   label: string;
   value: number;
+  min?: number;
   max?: number;
+  format?: (value: number) => string;
   onChange: (value: number) => void;
 }) {
-  const span = Math.max(1, max);
-  const angle = -135 + (value / span) * 270;
+  const clamped = Math.min(max, Math.max(min, value));
+  const span = Math.max(1, max - min);
+  const angle = -135 + ((clamped - min) / span) * 270;
+  const shown = format ? format(value) : String(value);
   return (
     <label className="flex min-w-0 flex-col items-center gap-1.5">
       <span className="relative grid size-16 place-items-center">
@@ -33,22 +39,23 @@ export function Knob({
           />
           <circle cx="32" cy="32" r="3" className="fill-[oklch(0.9_0.03_90)]" />
         </svg>
-        <span className="absolute bottom-1 font-mono text-[10px] text-[oklch(0.9_0.02_90)]">
-          {value}
+        <span className="absolute bottom-1 max-w-14 truncate text-center font-mono text-[10px] text-[oklch(0.9_0.02_90)]">
+          {shown}
         </span>
       </span>
       <span className="text-center text-[10px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </span>
       <Slider
-        min={0}
+        min={min}
         max={max}
-        value={[value]}
+        step={1}
+        value={[clamped]}
         onValueChange={(next) => {
           const resolved = Array.isArray(next) ? next[0] : next;
           if (typeof resolved === "number") onChange(resolved);
         }}
-        aria-label={label}
+        aria-label={format ? `${label}, ${shown}` : label}
       />
     </label>
   );

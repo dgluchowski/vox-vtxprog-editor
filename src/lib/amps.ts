@@ -48,10 +48,53 @@ export function ampById(id: number): AmpModel {
 export type EffectKnob = {
   label: string;
   index: number;
+  min?: number;
   max?: number;
+  /**
+   * Little-endian pair at `index` and `index + 1`.
+   * Millihertz for modulation speed, milliseconds for delay time.
+   */
+  pair?: "millihertz" | "milliseconds";
   /** Stepped control. Comp voice is 1–3, stored as 0–2. Cuts are off or on. */
   choices?: { id: number; name: string }[];
 };
+
+/** Amp knobs the bench writes. 7, 8, and 9 are the 5.0, 2.0, and 7.5 dials. */
+export const AMP_PARAM = {
+  nr: 0,
+  gain: 3,
+  treble: 4,
+  middle: 5,
+  bass: 6,
+  volume: 7,
+  presence: 8,
+  resonance: 9,
+} as const;
+
+/** Parameter 8 is Tone on AC30 and AC30TB, Presence on the other models. */
+export function toneOrPresence(ampId: number): "Tone" | "Presence" {
+  return ampId === 6 || ampId === 7 ? "Tone" : "Presence";
+}
+
+export function knobValue(params: readonly number[], knob: EffectKnob): number {
+  if (knob.pair) return (params[knob.index] ?? 0) + ((params[knob.index + 1] ?? 0) << 8);
+  return params[knob.index] ?? 0;
+}
+
+/** Write one knob. Pairs store the full integer little-endian across two bytes. */
+export function withKnob(params: readonly number[], knob: EffectKnob, value: number): number[] {
+  const next = [...params];
+  const min = knob.min ?? 0;
+  const max = knob.max ?? (knob.pair ? 0xffff : 100);
+  const clamped = Math.max(min, Math.min(max, Math.round(value)));
+  if (knob.pair) {
+    next[knob.index] = clamped & 0xff;
+    next[knob.index + 1] = (clamped >> 8) & 0xff;
+    return next;
+  }
+  next[knob.index] = clamped;
+  return next;
+}
 
 const ON_OFF = [
   { id: 0, name: "Off" },
@@ -101,9 +144,6 @@ const driveKnobs: EffectKnob[] = [
 /**
  * Tone Room 1.4 pedal order. The amp selector only has four types per pedal.
  * The rest are editor types. A user program still plays them.
- * Treble Boost, Orange Dist, Fat Dist, and Blk Phaser were read from
- * fixtures/Mapping.vtxprog. RC Turbo (5) and Brit Lead (8) were read from
- * fixtures/Mapping2.vtxprog.
  */
 export const PEDAL1: EffectType[] = [
   {
@@ -130,10 +170,10 @@ export const PEDAL1: EffectType[] = [
     name: "Chorus",
     onPanel: true,
     knobs: [
-      { label: "Speed", index: 16 },
-      { label: "Depth", index: 17 },
-      { label: "Manual", index: 18 },
-      { label: "Mix", index: 19 },
+      { label: "Speed", index: 16, pair: "millihertz", min: 100, max: 10000 },
+      { label: "Depth", index: 18 },
+      { label: "Manual", index: 19 },
+      { label: "Mix", index: 20 },
       { label: "Low cut", index: 21, choices: ON_OFF },
       { label: "High cut", index: 22, choices: ON_OFF },
     ],
@@ -149,7 +189,7 @@ export const PEDAL1: EffectType[] = [
 ];
 
 const delayKnobs: EffectKnob[] = [
-  { label: "Time", index: 24, max: 255 },
+  { label: "Time", index: 24, pair: "milliseconds", min: 30, max: 1200 },
   { label: "Level", index: 26 },
   { label: "Feedback", index: 27 },
   { label: "Tone", index: 28 },
@@ -163,7 +203,7 @@ export const PEDAL2: EffectType[] = [
     name: "Flanger",
     onPanel: true,
     knobs: [
-      { label: "Speed", index: 24, max: 255 },
+      { label: "Speed", index: 24, pair: "millihertz", min: 100, max: 5000 },
       { label: "Depth", index: 26 },
       { label: "Manual", index: 27 },
       { label: "Low cut", index: 28, choices: ON_OFF },
@@ -176,7 +216,7 @@ export const PEDAL2: EffectType[] = [
     name: "Blk Phaser",
     onPanel: false,
     knobs: [
-      { label: "Speed", index: 24, max: 255 },
+      { label: "Speed", index: 24, pair: "millihertz", min: 100, max: 10000 },
       { label: "Resonance", index: 26 },
       { label: "Manual", index: 27 },
       { label: "Depth", index: 28 },
@@ -187,7 +227,7 @@ export const PEDAL2: EffectType[] = [
     name: "Org Phaser 1",
     onPanel: true,
     knobs: [
-      { label: "Speed", index: 24, max: 255 },
+      { label: "Speed", index: 24, pair: "millihertz", min: 100, max: 10000 },
       { label: "Resonance", index: 26 },
       { label: "Manual", index: 27 },
       { label: "Depth", index: 28 },
@@ -198,7 +238,7 @@ export const PEDAL2: EffectType[] = [
     name: "Org Phaser 2",
     onPanel: false,
     knobs: [
-      { label: "Speed", index: 24, max: 255 },
+      { label: "Speed", index: 24, pair: "millihertz", min: 100, max: 10000 },
       { label: "Resonance", index: 26 },
       { label: "Manual", index: 27 },
       { label: "Depth", index: 28 },
@@ -209,7 +249,7 @@ export const PEDAL2: EffectType[] = [
     name: "Tremolo",
     onPanel: true,
     knobs: [
-      { label: "Speed", index: 24, max: 255 },
+      { label: "Speed", index: 24, pair: "millihertz", min: 1650, max: 10000 },
       { label: "Depth", index: 26 },
       { label: "Duty", index: 27 },
       { label: "Shape", index: 28 },

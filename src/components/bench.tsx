@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AMPS,
   AMP_CLASS,
+  AMP_PARAM,
   BIAS,
   PEDAL1,
   PEDAL1_ENABLE,
@@ -13,7 +14,11 @@ import {
   REVERB_ENABLE,
   ampById,
   effectById,
+  knobValue,
   pedalLabel,
+  toneOrPresence,
+  withKnob,
+  type EffectKnob,
 } from "@/lib/amps";
 import { BUNDLED_BANKS } from "@/lib/banks";
 import { SUGGESTIONS, describeProgram, shapeTone, type ToneSource } from "@/lib/tone";
@@ -119,6 +124,10 @@ export function Bench() {
 
   function setKnob(index: number, value: number) {
     update((item) => setParam(item, index, value));
+  }
+
+  function applyEffectKnob(knob: EffectKnob, value: number) {
+    update((item) => ({ ...item, params: withKnob(item.params, knob, value) }));
   }
 
   function writePrompt(nextPrompt = prompt) {
@@ -404,19 +413,24 @@ export function Bench() {
                 </div>
 
                 <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
-                  <Knob label="NR sens" value={program.params[0]} onChange={(value) => setKnob(0, value)} />
-                  <Knob label="Gain" value={program.params[3]} onChange={(value) => setKnob(3, value)} />
-                  <Knob label="Treble" value={program.params[4]} onChange={(value) => setKnob(4, value)} />
-                  <Knob label="Middle" value={program.params[5]} onChange={(value) => setKnob(5, value)} />
-                  <Knob label="Bass" value={program.params[6]} onChange={(value) => setKnob(6, value)} />
-                  <Knob label="Volume" value={program.params[9]} onChange={(value) => setKnob(9, value)} />
-                  <Knob label="Presence" value={program.params[7]} onChange={(value) => setKnob(7, value)} />
-                  <Knob label="Resonance" value={program.params[8]} onChange={(value) => setKnob(8, value)} />
+                  <Knob label="NR sens" value={program.params[AMP_PARAM.nr]} onChange={(value) => setKnob(AMP_PARAM.nr, value)} />
+                  <Knob label="Gain" value={program.params[AMP_PARAM.gain]} onChange={(value) => setKnob(AMP_PARAM.gain, value)} />
+                  <Knob label="Treble" value={program.params[AMP_PARAM.treble]} onChange={(value) => setKnob(AMP_PARAM.treble, value)} />
+                  <Knob label="Middle" value={program.params[AMP_PARAM.middle]} onChange={(value) => setKnob(AMP_PARAM.middle, value)} />
+                  <Knob label="Bass" value={program.params[AMP_PARAM.bass]} onChange={(value) => setKnob(AMP_PARAM.bass, value)} />
+                  <Knob label="Volume" value={program.params[AMP_PARAM.volume]} onChange={(value) => setKnob(AMP_PARAM.volume, value)} />
+                  <Knob
+                    label={toneOrPresence(program.params[2])}
+                    value={program.params[AMP_PARAM.presence]}
+                    onChange={(value) => setKnob(AMP_PARAM.presence, value)}
+                  />
+                  <Knob label="Resonance" value={program.params[AMP_PARAM.resonance]} onChange={(value) => setKnob(AMP_PARAM.resonance, value)} />
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Presence and resonance are on the VT40X. Presence boosts the high end;
-                  on some models that same control cuts highs. Resonance boosts the low end
-                  and keeps it tight.
+                  Volume is the knob that reads 5.0. Tone on AC30 and AC30TB, and Presence
+                  on the other models, is the knob that reads 2.0. Resonance is the knob
+                  that reads 7.5. Presence boosts the high end; on some models that same
+                  control cuts highs. Resonance boosts the low end and keeps it tight.
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <Field label="Bright cap">
@@ -463,6 +477,7 @@ export function Bench() {
                     kind="pedal1"
                     params={program.params}
                     onKnob={setKnob}
+                    onEffectKnob={applyEffectKnob}
                   />
                   <EffectBlock
                     title="Pedal 2"
@@ -471,6 +486,7 @@ export function Bench() {
                     kind="pedal2"
                     params={program.params}
                     onKnob={setKnob}
+                    onEffectKnob={applyEffectKnob}
                   />
                   <div className="rounded-xl border border-border p-3">
                     <h3 className="text-sm font-medium">Reverb</h3>
@@ -572,6 +588,7 @@ function EffectBlock({
   onType,
   params,
   onKnob,
+  onEffectKnob,
 }: {
   title: string;
   type: number;
@@ -579,6 +596,7 @@ function EffectBlock({
   onType: (value: number) => void;
   params: number[];
   onKnob: (index: number, value: number) => void;
+  onEffectKnob: (knob: EffectKnob, value: number) => void;
 }) {
   const list = kind === "pedal1" ? PEDAL1 : PEDAL2;
   const effect = effectById(kind, type);
@@ -615,7 +633,7 @@ function EffectBlock({
       <div className="mt-3 grid grid-cols-2 gap-3">
         {effect.knobs.map((knob) =>
           knob.choices ? (
-            <Field key={knob.index} label={knob.label}>
+            <Field key={`${knob.label}-${knob.index}`} label={knob.label}>
               <Choice
                 value={params[knob.index]}
                 options={knob.choices}
@@ -624,11 +642,19 @@ function EffectBlock({
             </Field>
           ) : (
             <Knob
-              key={knob.index}
+              key={`${knob.label}-${knob.index}`}
               label={knob.label}
+              min={knob.min ?? 0}
               max={knob.max ?? 100}
-              value={params[knob.index]}
-              onChange={(value) => onKnob(knob.index, value)}
+              value={knobValue(params, knob)}
+              format={
+                knob.pair === "millihertz"
+                  ? (next) => (next / 1000).toFixed(3)
+                  : knob.pair === "milliseconds"
+                    ? (next) => `${next} ms`
+                    : undefined
+              }
+              onChange={(value) => onEffectKnob(knob, value)}
             />
           ),
         )}
@@ -664,10 +690,12 @@ function HelpDialog() {
             bank from Tone Room before you send one of these over.
           </p>
           <p>
-            Presence and resonance are amp controls on the VT40X. Presence boosts the
+            Volume is the 5.0 knob. On AC30 and AC30TB the next knob is Tone; on the
+            other models it is Presence. Resonance is the 7.5 knob. Presence boosts the
             high end, and on some models that control cuts highs instead. Resonance
-            boosts the low end and keeps it tight. Gain, treble, middle, bass, volume,
-            bias, and class are on the panel too.
+            boosts the low end and keeps it tight. Chorus speed, and pedal 2 speed and
+            delay time, are stored as a little-endian pair. Gain, treble, middle, bass,
+            volume, bias, and class are on the panel too.
           </p>
           <p>
             Tone Room edits more than the panel shows. Bright cap, low cut, and mid

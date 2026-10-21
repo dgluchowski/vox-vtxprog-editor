@@ -1,12 +1,22 @@
 /**
- * Byte-identical round trip of every bundled bank, plus a few tone descriptions.
+ * Byte-identical round trip of every bundled bank, a few tone descriptions,
+ * and synthetic programs that lock the bytes the editor writes.
  * This does not open Tone Room or send a program to an amp.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import {
+  AMP_PARAM,
+  PEDAL1,
+  PEDAL2,
+  knobValue,
+  toneOrPresence,
+  withKnob,
+  type EffectKnob,
+} from "../src/lib/amps";
 import { BUNDLED_BANKS } from "../src/lib/banks";
 import { shapeTone, type ToneSource } from "../src/lib/tone";
-import { bytesEqual, parseVtx, writeVtx } from "../src/lib/vtx";
+import { HEADER_LEN, MAGIC, RECORD_LEN, bytesEqual, parseVtx, writeVtx } from "../src/lib/vtx";
 
 const banksDir = path.join(process.cwd(), "public", "banks");
 const files = readdirSync(banksDir).filter((name) => name.endsWith(".vtxprog"));
@@ -50,9 +60,9 @@ function assertMapped(bankTitle: string, program: { name: string; params: number
   }
   if (!BYTE1.has(params[1])) throw new Error(`${where} byte 1 is ${params[1]}.`);
   for (let index = 31; index <= 38; index++) {
-    if (params[index] !== 0) throw new Error(`${where} reserved byte ${index} is ${params[index]}.`);
+    if (params[index] !== 0) throw new Error(`${where} unassigned byte ${index} is ${params[index]}.`);
   }
-  if (params[45] !== 0) throw new Error(`${where} byte 45 is ${params[45]}.`);
+  if (params[45] !== 0) throw new Error(`${where} unassigned byte 45 is ${params[45]}.`);
   for (const index of [3, 4, 5, 6, 7, 8, 9, 40, 41, 42, 43]) {
     if (params[index] > 100) throw new Error(`${where} knob ${index} is ${params[index]}.`);
   }
@@ -140,362 +150,150 @@ try {
 }
 if (failed) throw new Error("Short files should be rejected.");
 
-assertMappingFile();
-assertMapping2File();
-assertMapping3File();
-assertMapping4File();
-assertMapping5File();
-assertMapping7File();
-assertMapping8File();
-assertMapping9File();
+assertEditorMap();
 
 console.log(`Round-tripped ${files.length} banks, ${library.length} programs.`);
 console.log(scooped.notes.join(" "));
 console.log(clean.notes.join(" "));
 console.log(chime.notes.join(" "));
 
-/**
- * Mapping.vtxprog starts from comp, flanger, room, and VOX AC30.
- * Each program changes one type id. Treble Boost and BLK Phaser also store
- * flanger speed 100 instead of the baseline 200.
- */
-function assertMappingFile() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping.vtxprog did not round-trip.");
-  }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: Record<string, { index: number; value: number; speed?: number }> = {
-    "Treble Boost": { index: 15, value: 4, speed: 100 },
-    "Orange Dist": { index: 15, value: 6 },
-    "Fat Dist": { index: 15, value: 7 },
-    "BLK Phaser": { index: 23, value: 1, speed: 100 },
-    "T4x10 Bright": { index: 2, value: 2 },
-    "T4x10 Normal": { index: 2, value: 3 },
-    "Brit VM": { index: 2, value: 11 },
-    "SL-OD": { index: 2, value: 12 },
-    "Double Rec": { index: 2, value: 13 },
-    "Cali Elation": { index: 2, value: 14 },
-    "Erupt III Ch2": { index: 2, value: 15 },
-  };
-  if (bank.programs.length !== Object.keys(expected).length) {
-    throw new Error(`Mapping file has ${bank.programs.length} programs.`);
-  }
-  for (const program of bank.programs) {
-    const change = expected[program.name];
-    if (!change) throw new Error(`Unexpected mapping program ${program.name}.`);
-    program.params.forEach((value, index) => {
-      const wanted = index === change.index ? change.value : index === 24 && change.speed !== undefined ? change.speed : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  }
+function effectKnob(kind: "pedal1" | "pedal2", typeName: string, label: string): EffectKnob {
+  const list = kind === "pedal1" ? PEDAL1 : PEDAL2;
+  const found = list.find((item) => item.name === typeName)?.knobs.find((item) => item.label === label);
+  if (!found) throw new Error(`Missing ${typeName} ${label}.`);
+  return found;
 }
 
-/** Mapping2 changes one control per named program. Three trailing slots stay on the baseline. */
-function assertMapping2File() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping2.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping2.vtxprog did not round-trip.");
-  }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: { name: string; changes: Record<number, number> }[] = [
-    { name: "Erupt III Ch3", changes: { 2: 16 } },
-    { name: "Brit Lead", changes: { 15: 8 } },
-    { name: "RC Turbo", changes: { 15: 5 } },
-    { name: "Bright Cap Off", changes: { 10: 0 } },
-    { name: "Mid Boost On", changes: { 12: 1 } },
-    { name: "Low Cut On", changes: { 11: 1 } },
-    { name: "L+H Damp max", changes: { 1: 16, 43: 100, 44: 100 } },
-    { name: "L+H Damp Min", changes: { 1: 16, 43: 0, 44: 0 } },
-    { name: "", changes: {} },
-    { name: "", changes: {} },
-    { name: "", changes: {} },
-  ];
-  if (bank.programs.length !== expected.length) {
-    throw new Error(`Mapping2 has ${bank.programs.length} programs.`);
-  }
-  bank.programs.forEach((program, slot) => {
-    const change = expected[slot];
-    if (program.name !== change.name) {
-      throw new Error(`Mapping2 slot ${slot} is named ${program.name}.`);
-    }
-    program.params.forEach((value, index) => {
-      const wanted = index in change.changes ? change.changes[index] : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name || "(blank)"} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  });
+function zeros(): number[] {
+  return Array.from({ length: 46 }, () => 0);
 }
 
-/** Mapping3 names low damp, high damp, noise reduction, and pre delay. */
-function assertMapping3File() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping3.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping3.vtxprog did not round-trip.");
+/** Locks the bytes the editor writes. Programs are built in code, not read from captures. */
+function assertEditorMap() {
+  if (AMP_PARAM.volume !== 7 || AMP_PARAM.presence !== 8 || AMP_PARAM.resonance !== 9) {
+    throw new Error("Parameters 7, 8, and 9 are not volume, tone/presence, and resonance.");
   }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: { name: string; changes: Record<number, number> }[] = [
-    { name: "LD 0 HD 10", changes: { 1: 16, 43: 0, 44: 100 } },
-    { name: "LD 10 HD 0", changes: { 1: 16, 43: 100, 44: 0 } },
-    { name: "NR Min", changes: { 0: 0 } },
-    { name: "NR Max", changes: { 0: 100 } },
-    { name: "Pre Delay Max", changes: { 1: 16, 42: 70 } },
-    { name: "", changes: {} },
-    { name: "", changes: {} },
-    { name: "", changes: {} },
-    { name: "", changes: {} },
-    { name: "", changes: {} },
-    { name: "", changes: {} },
-  ];
-  if (bank.programs.length !== expected.length) {
-    throw new Error(`Mapping3 has ${bank.programs.length} programs.`);
+  if (toneOrPresence(6) !== "Tone" || toneOrPresence(7) !== "Tone" || toneOrPresence(10) !== "Presence") {
+    throw new Error("Parameter 8 should read Tone on AC30 and AC30TB, Presence on other models.");
   }
-  bank.programs.forEach((program, slot) => {
-    const change = expected[slot];
-    if (program.name !== change.name) {
-      throw new Error(`Mapping3 slot ${slot} is named ${program.name}.`);
+
+  const speed = effectKnob("pedal1", "Chorus", "Speed");
+  const depth = effectKnob("pedal1", "Chorus", "Depth");
+  const manual = effectKnob("pedal1", "Chorus", "Manual");
+  const mix = effectKnob("pedal1", "Chorus", "Mix");
+  if (speed.index !== 16 || speed.pair !== "millihertz" || depth.pair || manual.pair || mix.pair) {
+    throw new Error("Chorus speed must be the millihertz pair, and depth, manual, and mix must be single bytes.");
+  }
+  if (depth.index !== 18 || manual.index !== 19 || mix.index !== 20) {
+    throw new Error("Chorus depth, manual, and mix are not parameters 18, 19, and 20.");
+  }
+
+  let chorus = withKnob(zeros(), speed, 2000);
+  chorus = withKnob(chorus, depth, 100);
+  chorus = withKnob(chorus, manual, 57);
+  chorus = withKnob(chorus, mix, 100);
+  if (chorus[16] !== 208 || chorus[17] !== 7) {
+    throw new Error(`Chorus 2 Hz stored ${chorus[16]}, ${chorus[17]}.`);
+  }
+  if (chorus[18] !== 100 || chorus[19] !== 57 || chorus[20] !== 100) {
+    throw new Error("Chorus depth, manual, or mix wrote the wrong parameter.");
+  }
+  if (knobValue(chorus, speed) !== 2000) throw new Error("Chorus speed did not read back as millihertz.");
+
+  const sens = effectKnob("pedal1", "Comp", "Sens");
+  const comp = zeros();
+  comp[17] = 7;
+  const sensWritten = withKnob(comp, sens, 40);
+  if (sensWritten[16] !== 40 || sensWritten[17] !== 7) {
+    throw new Error("Comp sensitivity wrote over the high byte.");
+  }
+
+  const flangerSpeed = effectKnob("pedal2", "Flanger", "Speed");
+  const flangerManual = effectKnob("pedal2", "Flanger", "Manual");
+  if (flangerSpeed.index !== 24 || flangerSpeed.pair !== "millihertz") {
+    throw new Error("Flanger speed is not the millihertz pair at 24–25.");
+  }
+  if (flangerManual.index !== 27 || flangerManual.pair) {
+    throw new Error("Flanger manual is not the single byte at parameter 27.");
+  }
+  let flanger = zeros();
+  flanger[3] = 100;
+  flanger = withKnob(flanger, flangerSpeed, 200);
+  flanger = withKnob(flanger, flangerManual, 100);
+  if (flanger[3] !== 100 || flanger[24] !== 200 || flanger[25] !== 0 || flanger[27] !== 100) {
+    throw new Error("Flanger manual did not stay isolated from speed and gain.");
+  }
+  const oneHz = withKnob(zeros(), flangerSpeed, 1000);
+  if (oneHz[24] !== 232 || oneHz[25] !== 3) throw new Error(`Flanger 1 Hz stored ${oneHz[24]}, ${oneHz[25]}.`);
+
+  for (const name of ["Blk Phaser", "Org Phaser 1", "Org Phaser 2"]) {
+    const phaserSpeed = effectKnob("pedal2", name, "Speed");
+    if (phaserSpeed.pair !== "millihertz" || phaserSpeed.index !== 24) {
+      throw new Error(`${name} speed is not the pair at 24–25.`);
     }
-    program.params.forEach((value, index) => {
-      const wanted = index in change.changes ? change.changes[index] : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name || "(blank)"} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  });
+  }
+  const tenHz = withKnob(zeros(), effectKnob("pedal2", "Blk Phaser", "Speed"), 10000);
+  if (tenHz[24] !== 16 || tenHz[25] !== 39) throw new Error("10 Hz encoding.");
+
+  const tremolo = effectKnob("pedal2", "Tremolo", "Speed");
+  if (tremolo.pair !== "millihertz" || tremolo.min !== 1650) {
+    throw new Error("Tremolo speed should start at 1.650 Hz.");
+  }
+  const tremMin = withKnob(zeros(), tremolo, 1650);
+  if (tremMin[24] !== 114 || tremMin[25] !== 6) throw new Error("1.650 Hz encoding.");
+
+  for (const name of ["Analog Delay", "Tape Echo"]) {
+    const time = effectKnob("pedal2", name, "Time");
+    if (time.pair !== "milliseconds" || time.index !== 24) {
+      throw new Error(`${name} time is not the millisecond pair at 24–25.`);
+    }
+  }
+  const delay = effectKnob("pedal2", "Analog Delay", "Time");
+  const ms100 = withKnob(zeros(), delay, 100);
+  const ms300 = withKnob(zeros(), delay, 300);
+  const ms1200 = withKnob(zeros(), delay, 1200);
+  if (ms100[24] !== 100 || ms100[25] !== 0) throw new Error("100 ms encoding.");
+  if (ms300[24] !== 44 || ms300[25] !== 1) throw new Error("300 ms encoding.");
+  if (ms1200[24] !== 176 || ms1200[25] !== 4) throw new Error("1200 ms encoding.");
+
+  const volume = shapeTone("volume at 1.3", library);
+  if (volume.program.params[7] !== 13 || !volume.notes.some((note) => note.includes("Volume set to 13"))) {
+    throw new Error(`Volume wrote ${volume.program.params[7]} at parameter 7.`);
+  }
+  const presence = shapeTone("presence at 9.1", library);
+  if (presence.program.params[8] !== 91 || !presence.notes.some((note) => note.includes("Presence set to 91"))) {
+    throw new Error(`Presence wrote ${presence.program.params[8]} at parameter 8.`);
+  }
+  const tone = shapeTone("tone at 8.2", library);
+  if (tone.program.params[8] !== 82 || !tone.notes.some((note) => note.includes("Tone set to 82"))) {
+    throw new Error(`Tone wrote ${tone.program.params[8]} at parameter 8.`);
+  }
+  const resonance = shapeTone("resonance at 1.7", library);
+  if (resonance.program.params[9] !== 17 || !resonance.notes.some((note) => note.includes("Resonance set to 17"))) {
+    throw new Error(`Resonance wrote ${resonance.program.params[9]} at parameter 9.`);
+  }
+
+  const params = zeros();
+  params[AMP_PARAM.volume] = 50;
+  params[AMP_PARAM.presence] = 20;
+  params[AMP_PARAM.resonance] = 75;
+  const bytes = writeVtx({ programs: [{ name: "Synthetic", params }] });
+  if (bytes.length !== HEADER_LEN + RECORD_LEN) throw new Error(`Synthetic file is ${bytes.length} bytes.`);
+  let magic = "";
+  for (let i = 0; i < MAGIC.length; i++) magic += String.fromCharCode(bytes[i]);
+  if (magic !== MAGIC) throw new Error("Synthetic header magic.");
+  for (let i = MAGIC.length; i < HEADER_LEN; i++) {
+    if (bytes[i] !== 0) throw new Error(`Header pad byte ${i} is ${bytes[i]}.`);
+  }
+  const parsed = parseVtx(bytes);
+  if (!bytesEqual(bytes, writeVtx(parsed))) throw new Error("Synthetic program did not round-trip.");
+  const stored = parsed.programs[0].params;
+  if (stored[7] !== 50 || stored[8] !== 20 || stored[9] !== 75) {
+    throw new Error("Synthetic amp knobs did not round-trip.");
+  }
+  for (let index = 31; index <= 38; index++) {
+    if (stored[index] !== 0) throw new Error(`Parameter ${index} was written.`);
+  }
+  if (stored[45] !== 0) throw new Error("Parameter 45 was written.");
 }
 
-/** Mapping4 names comp voice, the cut toggles, and the two pedal enables. */
-function assertMapping4File() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping4.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping4.vtxprog did not round-trip.");
-  }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: { name: string; changes: Record<number, number> }[] = [
-    { name: "Comp Voice 1", changes: { 1: 2, 20: 0 } },
-    { name: "Comp Voice 2", changes: { 1: 2 } },
-    { name: "Comp Voice 3", changes: { 1: 2, 20: 2 } },
-    { name: "Chorus low on", changes: { 1: 2, 15: 1, 21: 1 } },
-    { name: "Chorus high on", changes: { 1: 2, 15: 1, 22: 1 } },
-    { name: "Chorus Both on", changes: { 1: 2, 15: 1, 21: 1, 22: 1 } },
-    { name: "Flanger low on", changes: { 1: 4, 28: 1, 29: 0 } },
-    { name: "Flanger high on", changes: { 1: 4 } },
-    { name: "Flanger both on", changes: { 1: 4, 28: 1 } },
-    { name: "Flanger ON", changes: { 1: 4 } },
-    { name: "Comp ON", changes: { 1: 2 } },
-  ];
-  if (bank.programs.length !== expected.length) {
-    throw new Error(`Mapping4 has ${bank.programs.length} programs.`);
-  }
-  bank.programs.forEach((program, slot) => {
-    const change = expected[slot];
-    if (program.name !== change.name) {
-      throw new Error(`Mapping4 slot ${slot} is named ${program.name}.`);
-    }
-    program.params.forEach((value, index) => {
-      const wanted = index in change.changes ? change.changes[index] : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  });
-}
-
-/** Mapping5 sets one pedal-2 knob to 10. Pedal 2 is on. Black phaser is the phaser. */
-function assertMapping5File() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping5.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping5.vtxprog did not round-trip.");
-  }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: { name: string; changes: Record<number, number> }[] = [
-    { name: "Delay speed 10", changes: { 1: 4, 23: 6, 24: 30, 29: 100 } },
-    { name: "Delay depth 10", changes: { 1: 4, 23: 6, 24: 30, 30: 100 } },
-    { name: "Tremolo speed 10", changes: { 1: 4, 23: 4, 24: 16, 25: 39 } },
-    { name: "Tremolo depth 10", changes: { 1: 4, 23: 4, 24: 114, 25: 6, 26: 100 } },
-    { name: "Tremolo duty 10", changes: { 1: 4, 23: 4, 24: 114, 25: 6, 27: 100 } },
-    { name: "Tremolo shape 10", changes: { 1: 4, 23: 4, 24: 114, 25: 6, 28: 100 } },
-    { name: "Tremolo level 10", changes: { 1: 4, 23: 4, 24: 114, 25: 6, 29: 100 } },
-    { name: "Phaser speed 10", changes: { 1: 4, 23: 1, 24: 16, 25: 39 } },
-    { name: "Phaser res 10", changes: { 1: 4, 23: 1, 24: 100, 26: 100 } },
-    { name: "Phaser man 10", changes: { 1: 4, 23: 1, 24: 100, 27: 100 } },
-    { name: "Phaser Depth 10", changes: { 1: 4, 23: 1, 24: 100, 28: 100 } },
-  ];
-  if (bank.programs.length !== expected.length) {
-    throw new Error(`Mapping5 has ${bank.programs.length} programs.`);
-  }
-  bank.programs.forEach((program, slot) => {
-    const change = expected[slot];
-    if (program.name !== change.name) {
-      throw new Error(`Mapping5 slot ${slot} is named ${program.name}.`);
-    }
-    program.params.forEach((value, index) => {
-      const wanted = index in change.changes ? change.changes[index] : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  });
-}
-
-/**
- * Mapping7 changes one control in each region from the baseline chain.
- * Chorus speed 2 writes bytes 16 and 17 together. That pair is the speed edit.
- * Ch0 stores byte 16 as 100 and byte 17 as 0. A knob at 10 also stores 100.
- * Damian has not confirmed that chorus speed was at its minimum, so the 100/0
- * lock is unverified as a floor.
- */
-function assertMapping7File() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping7.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping7.vtxprog did not round-trip.");
-  }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: { name: string; changes: Record<number, number> }[] = [
-    { name: "OdD TmF Res Spr", changes: { 1: 22, 9: 100, 15: 2, 16: 100, 23: 4, 24: 114, 25: 6, 39: 1 } },
-    { name: "OdT Tm3 BiC Hal", changes: { 1: 22, 13: 1, 15: 2, 18: 100, 23: 4, 24: 184, 25: 11, 39: 2 } },
-    { name: "OdL Tm7 BiH Plt", changes: { 1: 22, 13: 2, 15: 2, 19: 100, 23: 4, 24: 88, 25: 27, 39: 3 } },
-    { name: "OdTr Tm5 Cls Rmx", changes: { 1: 22, 14: 1, 15: 2, 20: 100, 23: 4, 24: 136, 25: 19, 40: 100 } },
-    { name: "OdM Tm8 DxV Rtm", changes: { 1: 22, 2: 0, 15: 2, 21: 100, 23: 4, 24: 64, 25: 31, 41: 100 } },
-    { name: "OdB Tm9 DxN", changes: { 1: 6, 2: 1, 15: 2, 22: 100, 23: 4, 24: 40, 25: 35 } },
-    { name: "CmS PhF BCL", changes: { 1: 6, 2: 4, 16: 100, 23: 1, 24: 100 } },
-    { name: "CmL Ph1 BOD", changes: { 1: 6, 2: 5, 18: 100, 23: 1, 24: 232, 25: 3 } },
-    { name: "CmA Ph2 A30T", changes: { 1: 6, 2: 7, 19: 100, 23: 1, 24: 208, 25: 7 } },
-    { name: "Ch0 Ph5 B59T", changes: { 1: 6, 2: 8, 15: 1, 16: 100, 23: 1, 24: 136, 25: 19 } },
-    { name: "Ch2 Ph8 B59N", changes: { 1: 6, 2: 9, 15: 1, 16: 208, 17: 7, 23: 1, 24: 64, 25: 31 } },
-  ];
-  if (bank.programs.length !== expected.length) {
-    throw new Error(`Mapping7 has ${bank.programs.length} programs.`);
-  }
-  bank.programs.forEach((program, slot) => {
-    const change = expected[slot];
-    if (program.name !== change.name) {
-      throw new Error(`Mapping7 slot ${slot} is named ${program.name}.`);
-    }
-    program.params.forEach((value, index) => {
-      const wanted = index in change.changes ? change.changes[index] : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  });
-}
-
-/**
- * Mapping8 changes one control in each region from the baseline chain.
- * Chorus speed writes bytes 16 and 17 together. Flanger speed 100/0 is the
- * 0.100 Hz floor. The untouched opening pair 200/0 is not that floor.
- */
-function assertMapping8File() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping8.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping8.vtxprog did not round-trip.");
-  }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: { name: string; changes: Record<number, number> }[] = [
-    { name: "Ch5 Ph9 B800", changes: { 1: 6, 2: 10, 15: 1, 16: 136, 17: 19, 23: 1, 24: 40, 25: 35 } },
-    { name: "Ch8 O1S BMt", changes: { 1: 6, 2: 17, 15: 1, 16: 64, 17: 31, 23: 2, 24: 16, 25: 39 } },
-    { name: "Ch10 O1R OR2", changes: { 1: 6, 2: 18, 15: 1, 16: 16, 17: 39, 23: 2, 24: 100, 26: 100 } },
-    { name: "ChD O1M OCl", changes: { 1: 6, 2: 19, 15: 1, 18: 100, 23: 2, 24: 100, 27: 100 } },
-    { name: "ChM O1D", changes: { 1: 6, 15: 1, 19: 100, 23: 2, 24: 100, 28: 100 } },
-    { name: "ChMix FlF", changes: { 1: 6, 15: 1, 20: 100, 24: 100 } },
-    { name: "Gld Fl1", changes: { 1: 6, 15: 3, 24: 232, 25: 3 } },
-    { name: "Fuz Fl2", changes: { 1: 6, 15: 9, 24: 208, 25: 7 } },
-    { name: "Fl3", changes: { 1: 4, 24: 184, 25: 11 } },
-    { name: "Fl5", changes: { 1: 4, 24: 136, 25: 19 } },
-    { name: "FlD", changes: { 1: 4, 26: 100 } },
-  ];
-  if (bank.programs.length !== expected.length) {
-    throw new Error(`Mapping8 has ${bank.programs.length} programs.`);
-  }
-  bank.programs.forEach((program, slot) => {
-    const change = expected[slot];
-    if (program.name !== change.name) {
-      throw new Error(`Mapping8 slot ${slot} is named ${program.name}.`);
-    }
-    program.params.forEach((value, index) => {
-      const wanted = index in change.changes ? change.changes[index] : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  });
-}
-
-/**
- * Mapping9 changes one pedal-2 control from the baseline chain.
- * Delay time is a little-endian millisecond count in bytes 24 and 25.
- * FlM stores manual byte 27 as 100 and also moves speed from 200/0 to 100/0.
- * Depth byte 26 stays 50 and resonance byte 30 stays 35, so byte 27 is still
- * the manual edit. FlM is not a single-variable preset.
- */
-function assertMapping9File() {
-  const original = new Uint8Array(readFileSync(path.join(process.cwd(), "fixtures", "Mapping9.vtxprog")));
-  const bank = parseVtx(original);
-  if (!bytesEqual(original, writeVtx(bank))) {
-    throw new Error("Mapping9.vtxprog did not round-trip.");
-  }
-  const baseline = [
-    30, 0, 6, 50, 50, 50, 50, 50, 20, 75, 1, 0, 0, 0, 0, 0, 50, 0, 67, 57, 1, 0, 0, 0, 200, 0, 50, 77, 0,
-    1, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 45, 0, 36, 25, 0,
-  ];
-  const expected: { name: string; changes: Record<number, number> }[] = [
-    { name: "FlM", changes: { 1: 4, 24: 100, 27: 100 } },
-    { name: "FlR", changes: { 1: 4, 30: 100 } },
-    { name: "D100", changes: { 1: 4, 23: 6, 24: 100 } },
-    { name: "D300", changes: { 1: 4, 23: 6, 24: 44, 25: 1 } },
-    { name: "D1200", changes: { 1: 4, 23: 6, 24: 176, 25: 4 } },
-    { name: "D255", changes: { 1: 4, 23: 6, 24: 255 } },
-    { name: "DLv", changes: { 1: 4, 23: 6, 24: 30, 26: 100 } },
-    { name: "DFb", changes: { 1: 4, 23: 6, 24: 30, 27: 100 } },
-    { name: "DTn", changes: { 1: 4, 23: 6, 24: 30, 28: 100 } },
-    { name: "OP2", changes: { 1: 4, 23: 3, 24: 100 } },
-    { name: "Tap", changes: { 1: 4, 23: 5, 24: 30 } },
-  ];
-  if (bank.programs.length !== expected.length) {
-    throw new Error(`Mapping9 has ${bank.programs.length} programs.`);
-  }
-  bank.programs.forEach((program, slot) => {
-    const change = expected[slot];
-    if (program.name !== change.name) {
-      throw new Error(`Mapping9 slot ${slot} is named ${program.name}.`);
-    }
-    program.params.forEach((value, index) => {
-      const wanted = index in change.changes ? change.changes[index] : baseline[index];
-      if (value !== wanted) {
-        throw new Error(`${program.name} param ${index} is ${value}, expected ${wanted}.`);
-      }
-    });
-  });
-}
