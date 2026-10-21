@@ -1,94 +1,17 @@
 /**
- * Byte-identical round trip of every bundled bank, plus a few tone descriptions.
- * This does not open Tone Room or send a program to an amp.
+ * Byte-identical round trip of the mapping fixtures, plus tone descriptions
+ * shaped from a blank program. This does not open Tone Room or send a program to an amp.
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
-import { BUNDLED_BANKS } from "../src/lib/banks";
 import { shapeTone, type ToneSource } from "../src/lib/tone";
-import { bytesEqual, parseVtx, writeVtx } from "../src/lib/vtx";
+import { blankProgram, bytesEqual, parseVtx, writeVtx } from "../src/lib/vtx";
 
-const banksDir = path.join(process.cwd(), "public", "banks");
-const files = readdirSync(banksDir).filter((name) => name.endsWith(".vtxprog"));
-if (files.length !== BUNDLED_BANKS.length) {
-  throw new Error(`Expected ${BUNDLED_BANKS.length} banks, found ${files.length}.`);
-}
-
-const BYTE1 = new Set([0, 2, 4, 6, 16, 18, 20, 22]);
-
-const library: ToneSource[] = [];
-for (const entry of BUNDLED_BANKS) {
-  const original = new Uint8Array(readFileSync(path.join(banksDir, entry.file)));
-  const bank = parseVtx(original);
-  const written = writeVtx(bank);
-  if (!bytesEqual(original, written)) {
-    throw new Error(`${entry.file} did not round-trip.`);
-  }
-  bank.programs.forEach((program, slot) => {
-    library.push({ bankTitle: entry.title, slot, program });
-    assertMapped(entry.title, program);
-  });
-}
-
-function assertMapped(bankTitle: string, program: { name: string; params: number[] }) {
-  const params = program.params;
-  const where = `${bankTitle} / ${program.name || "(blank)"}`;
-  if (params.length !== 46) throw new Error(`${where} has ${params.length} parameters.`);
-  if (params[2] > 19) throw new Error(`${where} amp id ${params[2]} is outside 0–19.`);
-  if (params[13] > 2) throw new Error(`${where} bias ${params[13]} is outside 0–2.`);
-  if (params[14] > 1) throw new Error(`${where} class ${params[14]} is outside 0–1.`);
-  if ((params[2] === 6 || params[2] === 7) && params[14] !== 0) {
-    throw new Error(`${where} is an AC30 with class byte ${params[14]}.`);
-  }
-  if (params[15] > 9) throw new Error(`${where} pedal 1 type ${params[15]} is outside 0–9.`);
-  if (params[23] > 6) throw new Error(`${where} pedal 2 type ${params[23]} is outside 0–6.`);
-  if (params[39] > 3) throw new Error(`${where} reverb type ${params[39]} is outside 0–3.`);
-  for (const index of [10, 11, 12]) {
-    if (params[index] !== 0 && params[index] !== 1) {
-      throw new Error(`${where} switch byte ${index} is ${params[index]}.`);
-    }
-  }
-  if (!BYTE1.has(params[1])) throw new Error(`${where} byte 1 is ${params[1]}.`);
-  for (let index = 31; index <= 38; index++) {
-    if (params[index] !== 0) throw new Error(`${where} reserved byte ${index} is ${params[index]}.`);
-  }
-  if (params[45] !== 0) throw new Error(`${where} byte 45 is ${params[45]}.`);
-  for (const index of [3, 4, 5, 6, 7, 8, 9, 40, 41, 42, 43]) {
-    if (params[index] > 100) throw new Error(`${where} knob ${index} is ${params[index]}.`);
-  }
-}
-
-const asato = library.find((source) => source.bankTitle === "Mateus Asato" && source.program.name === "Asato");
-if (!asato || asato.program.params[2] !== 4) {
-  throw new Error("Asato should be Boutique CL (amp 4).");
-}
-
-const scooped = shapeTone("System of a Down, scooped high gain, tight", library);
-if (scooped.program.params[2] !== 7 && scooped.baseLabel !== "SOAD") {
-  throw new Error(`Scooped metal started from ${scooped.baseLabel}, amp ${scooped.program.params[2]}.`);
-}
-if (scooped.program.name !== "SOAD") {
-  throw new Error(`Expected base name SOAD, got ${scooped.program.name}.`);
-}
-if (scooped.program.params[5] > 34) {
-  throw new Error(`Scooped middle stayed at ${scooped.program.params[5]}.`);
-}
-if (scooped.program.params[3] < 80) {
-  throw new Error(`High gain fell to ${scooped.program.params[3]}.`);
-}
-
-const clean = shapeTone("Mateus Asato, pristine clean, room reverb", library);
-if (clean.program.params[2] !== 4 || clean.program.params[3] > 36) {
-  throw new Error(`Clean Asato came out amp ${clean.program.params[2]} gain ${clean.program.params[3]}.`);
-}
-if (clean.program.params[39] !== 0 || clean.program.params[40] < 34) {
-  throw new Error("Clean Asato did not get a room reverb.");
-}
+const library: ToneSource[] = [
+  { bankTitle: "New bank", slot: 0, program: blankProgram("Empty") },
+];
 
 const chime = shapeTone("AC30 chime, edge of breakup, spring reverb", library);
-if (chime.baseLabel === "SOAD") {
-  throw new Error("Chime cloned the high-gain SOAD program.");
-}
 if (chime.program.params[2] !== 6 && chime.program.params[2] !== 7) {
   throw new Error(`Chime amp was ${chime.program.params[2]}.`);
 }
@@ -110,11 +33,6 @@ if (plexi.program.params[40] !== 0) {
 const orange = shapeTone("Orange rock crunch, medium gain, room reverb", library);
 if (orange.program.params[2] !== 18) {
   throw new Error(`Orange amp was ${orange.program.params[2]}.`);
-}
-
-const brian = shapeTone("Brian May crunch, a bit brighter", library);
-if (brian.baseLabel !== "Brian May crunch") {
-  throw new Error(`Brian May started from ${brian.baseLabel}.`);
 }
 
 const named = shapeTone('call it Night Drive, deluxe clean', library);
@@ -149,10 +67,9 @@ assertMapping7File();
 assertMapping8File();
 assertMapping9File();
 
-console.log(`Round-tripped ${files.length} banks, ${library.length} programs.`);
-console.log(scooped.notes.join(" "));
-console.log(clean.notes.join(" "));
+console.log("Round-tripped 8 mapping fixtures.");
 console.log(chime.notes.join(" "));
+console.log(plexi.notes.join(" "));
 
 /**
  * Mapping.vtxprog starts from comp, flanger, room, and VOX AC30.

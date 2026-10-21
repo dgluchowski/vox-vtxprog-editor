@@ -21,9 +21,8 @@ This repo has **eight** controlled fixture files. Mapping6 is not one of them.
 
 - Mapping6 was an amp-knob upload. It is not committed. Do not add it under that name.
 - `tone-room-check.vtxprog` and `speed-ladder.vtxprog` were generated for a Tone Room pass. No results have come back. They are not in `fixtures/`.
-- `USERBANK.vtxprog` from a Tone Room install is eight slots named USER A-1 through USER B-4. It is not in this repo. The factory picture-list names are not in this repo either.
-
-The example banks under `public/banks` are Marcos Moura’s programs. They are round-tripped and range-checked. They are not single-control experiments.
+- `USERBANK.vtxprog` from a Tone Room install is eight slots named USER A-1 through USER B-4. It is not in this repo. The factory picture-list names are not in this repo either. Other USERBANK formats are not in this repo either.
+- No other `.vtxprog` file is in this repo. There is no VOX factory bank here.
 
 ## Where a preset moves more than one control
 

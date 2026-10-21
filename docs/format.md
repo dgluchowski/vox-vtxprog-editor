@@ -165,7 +165,7 @@ The editor’s delay time knob is a single byte with a maximum of 255.
 - Mapping9 `FlM` stores flanger manual as 100 on byte 27 and also moves speed from 200/0 to 100/0. It is not a pure single-variable preset. Manual is still identified because depth (byte 26) stays 50 and resonance (byte 30) stays 35.
 - `tone-room-check.vtxprog` and `speed-ladder.vtxprog` were generated for a Tone Room pass. Results have not come back. They are not fixtures in this repo.
 - Mapping6 was an amp-knob upload and was not committed. There is no Mapping6 fixture. Bytes 7 and 8 are untouched in every committed mapping file.
-- The Tone Room install’s `USERBANK.vtxprog` is eight slots named USER A-1 through USER B-4. That file does not contain the factory picture-list names. This repo does not include `USERBANK.vtxprog`, and it does not include those picture-list programs.
+- The Tone Room install’s `USERBANK.vtxprog` is eight slots named USER A-1 through USER B-4. That file does not contain the factory picture-list names. This repo does not include `USERBANK.vtxprog`, other USERBANK formats, or those picture-list programs. No VOX factory bank is in this repo.
 - Tube OD is the only drive whose six knobs were turned. Gold Drive, Treble Boost, RC Turbo, Orange Dist, Fat Dist, Brit Lead, and Fuzz are assumed to share that block. Gold Drive and Fuzz were recorded as type ids only.
 - Org Phaser 2 and Tape Echo were recorded as type ids only. Org Phaser 2 is assumed to share the Blk Phaser knob order. Tape Echo is assumed to share the analog delay block.
 - Speed encoding in the fixtures is sampled pairs, such as 5 → 136/19 and 10 → 16/39. That is not a proved formula for every UI value.
