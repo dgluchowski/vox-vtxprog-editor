@@ -84,3 +84,5 @@ npm run typecheck
 ```
 
 `npm run check` builds synthetic programs that lock these byte writes. It does not open Tone Room. Details are in [docs/tests.md](docs/tests.md).
+
+Licensed under the [MIT License](LICENSE).
