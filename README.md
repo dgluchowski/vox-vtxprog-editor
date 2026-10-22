@@ -4,7 +4,7 @@ A `.vtxprog` file is a VOX Tone Room program bank for the VT20X, VT40X, and VT10
 
 ## Abstract
 
-The bank is a 32-byte header followed by 62-byte programs. Each program holds a 16-byte name and 46 parameter bytes. Knobs marked 0–10 are stored times ten, so 10 is 100. Modulation speed is an unsigned little-endian millihertz count, and delay time is an unsigned little-endian millisecond count. Parameter 7 is the knob that reads 5.0 (Volume on AC30). Parameter 8 is the knob that reads 2.0 (Tone on AC30 and AC30TB, Presence on the other models). Parameter 9 is the knob that reads 7.5 (Resonance). Chorus speed is parameters 16 and 17; depth, manual, and mix are 18, 19, and 20. Parameters 24–25 are pedal 2 speed or delay time, depending on the pedal (one pair, not both at once). A handful of bytes have no assigned control.
+The bank is a 32-byte header followed by 62-byte programs. Each program holds a 16-byte name and 46 parameter bytes. Knobs marked 0–10 are stored times ten, so 10 is 100. Modulation speed is an unsigned little-endian millihertz count, and delay time is an unsigned little-endian millisecond count. Parameter 7 is the 5.0 knob. The editor labels it Volume on every amp. Parameter 8 is the 2.0 knob: Tone on AC30 and AC30TB, Presence on the other models. Parameter 9 is Resonance, the 7.5 knob. Chorus speed is parameters 16 and 17; depth, manual, and mix are 18, 19, and 20. Parameters 24–25 are pedal 2 speed or delay time, depending on the pedal (one pair, not both at once). A handful of bytes have no assigned control.
 
 ## Method
 
@@ -35,9 +35,9 @@ Modulation speed (chorus, flanger, phaser, tremolo) is little-endian millihertz.
 | 4 | Treble |
 | 5 | Middle |
 | 6 | Bass |
-| 7 | The 5.0 knob. Volume on AC30 |
+| 7 | The 5.0 knob. The editor labels it Volume on every amp |
 | 8 | The 2.0 knob. Tone on AC30 and AC30TB, Presence on the other models |
-| 9 | The 7.5 knob. Resonance |
+| 9 | Resonance, the 7.5 knob |
 | 10 | Bright cap. 0 off, 1 on |
 | 11 | Low cut. 0 off, 1 on |
 | 12 | Mid boost. 0 off, 1 on |
@@ -64,6 +64,8 @@ Modulation speed (chorus, flanger, phaser, tremolo) is little-endian millihertz.
 | 42 | Reverb pre-delay |
 | 43 | Reverb low damp |
 | 44 | Reverb high damp |
+
+Selecting VOX AC30 or VOX AC30TB writes class A (parameter 14 = 0). Selecting a different model after either of those writes class AB (parameter 14 = 1). The Power amp control stays editable on both models, and on every other model, and a direct change writes 0 or 1. A tone description does the same class write when it changes the amp to or from those two models.
 
 Gold Drive, Treble Boost, RC Turbo, Orange Dist, Fat Dist, Brit Lead, and Fuzz use the Tube OD knob row (parameters 16, 18, 19, 20, 21, and 22). Org Phaser 2 uses the same row as Blk Phaser and Org Phaser 1 (the speed pair, then resonance, manual, and depth). Tape Echo uses the Analog Delay row. Model names and the per-type knob lists are in [docs/format.md](docs/format.md).
 

@@ -12,7 +12,7 @@ src/components/knob.tsx   Knob control
 src/lib/vtx.ts            parseVtx / writeVtx
 src/lib/amps.ts           Amp ids, pedal knobs, the bytes the editor writes
 src/lib/tone.ts           Tone-description shaping
-package.json              npm run dev, check, typecheck
+package.json              npm run dev, build, start, lint, check, typecheck
 ```
 
 `AMP_PARAM` and `withKnob` in `src/lib/amps.ts` are the indexes the bench writes. The same map is written up in [format.md](format.md) and [README.md](../README.md).

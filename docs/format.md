@@ -66,7 +66,7 @@ Chorus speed uses parameters 16 and 17, range 0.100–10 Hz. Flanger speed uses 
 | 18 | Brit OR MkII |
 | 19 | Original Clean |
 
-AC30 and AC30TB store class A (parameter 14 = 0). Class AB is 1 on the other models that expose it.
+Selecting VOX AC30 or VOX AC30TB writes class A (parameter 14 = 0). Selecting a different model after either of those writes class AB (parameter 14 = 1). The Power amp control stays editable on both models, and on every other model, and a direct change writes 0 or 1. A tone description does the same class write when it changes the amp to or from those two models.
 
 ## Parameters
 
@@ -81,9 +81,9 @@ AC30 and AC30TB store class A (parameter 14 = 0). Class AB is 1 on the other mod
 | 4 | Treble |
 | 5 | Middle |
 | 6 | Bass |
-| 7 | The knob that reads 5.0. On AC30 that label is Volume. |
-| 8 | The knob that reads 2.0. Tone on AC30 and AC30TB. Presence on the other models. |
-| 9 | The knob that reads 7.5. Resonance. |
+| 7 | The 5.0 knob. The editor labels it Volume on every amp. |
+| 8 | The 2.0 knob. Tone on AC30 and AC30TB, Presence on the other models. |
+| 9 | Resonance, the 7.5 knob. |
 | 10 | Bright cap. 0 off, 1 on |
 | 11 | Low cut. 0 off, 1 on |
 | 12 | Mid boost. 0 off, 1 on |
