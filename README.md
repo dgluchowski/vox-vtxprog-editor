@@ -6,7 +6,7 @@ A `.vtxprog` file is a VOX Tone Room program bank for the VT20X, VT40X, and VT10
 
 ## Abstract
 
-The bank is a 32-byte header followed by 62-byte programs. Each program holds a 16-byte name and 46 parameter bytes. Knobs marked 0–10 are stored times ten, so 10 is 100. Modulation speed is an unsigned little-endian millihertz count, and delay time is an unsigned little-endian millisecond count. Parameter 7 is the 5.0 knob. The editor labels it Volume on every amp. Parameter 8 is the 2.0 knob: Tone on AC30 and AC30TB, Presence on the other models. Parameter 9 is Resonance, the 7.5 knob. Chorus speed is parameters 16 and 17; depth, manual, and mix are 18, 19, and 20. Parameters 24–25 are pedal 2 speed or delay time, depending on the pedal (one pair, not both at once). A handful of bytes have no assigned control.
+VOX Tone Room stores user programs for the VT20X, VT40X, and VT100X amplifiers in `.vtxprog` files. That format is undocumented, so a program can be edited only inside Tone Room. An outside editor had no reliable way to change a bank the amplifier would load. The objective of this work is to map the format so a browser editor can read and write these banks. Controlled saves in Tone Room moved one control at a time, and the files were diffed so each changed byte could be attributed to that control. Synthetic test programs then locked the mapping by checking the bytes the editor writes. The primary outcome is a verified map of the program parameters and a browser editor built on that map. The editor opens a bank, edits a program from the panel or from a short text description of the tone, and saves a bank Tone Room accepts. The map matters because these programs can now be prepared and revised outside Tone Room.
 
 ## Method
 
