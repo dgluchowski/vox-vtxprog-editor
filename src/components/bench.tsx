@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AMPS,
   AMP_CLASS,
@@ -30,10 +30,12 @@ import {
   setParam,
   slotLabel,
   blankProgram,
+  cloneProgram,
   writeVtx,
   type Bank,
   type Program,
 } from "@/lib/vtx";
+import { cn } from "@/lib/utils";
 import { Knob } from "@/components/knob";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,10 +57,30 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
+function emptyBank(): Bank {
+  return { programs: Array.from({ length: 8 }, () => blankProgram()) };
+}
+
+function fingerprint(value: Bank): string {
+  return JSON.stringify({ headerPad: value.headerPad ?? null, programs: value.programs });
+}
+
+function cloneBank(value: Bank): Bank {
+  return {
+    programs: value.programs.map(cloneProgram),
+    ...(value.headerPad ? { headerPad: [...value.headerPad] } : {}),
+  };
+}
+
+function inSameGesture(lastEditAt: { current: number }, pastLength: number, coalesce: boolean): boolean {
+  const now = Date.now();
+  const same = coalesce && now - lastEditAt.current < 400 && pastLength > 0;
+  lastEditAt.current = now;
+  return same;
+}
+
 export function Bench() {
-  const [bank, setBank] = useState<Bank | null>({
-    programs: Array.from({ length: 8 }, () => blankProgram()),
-  });
+  const [bank, setBank] = useState<Bank>(emptyBank);
   const [active, setActive] = useState(0);
   const [fileName, setFileName] = useState("new-bank.vtxprog");
   const [prompt, setPrompt] = useState(SUGGESTIONS[0].prompt);
@@ -66,39 +88,148 @@ export function Bench() {
     "Eight empty slots. Write a tone into the channel you want to keep.",
   ]);
   const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [hasClipboard, setHasClipboard] = useState(false);
+  const [swapTarget, setSwapTarget] = useState(1);
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const bankRef = useRef(bank);
+  const pastRef = useRef<Bank[]>([]);
+  const futureRef = useRef<Bank[]>([]);
+  const savedRef = useRef(fingerprint(bank));
+  const lastEditAt = useRef(0);
+  const clipboardRef = useRef<Program | null>(null);
 
-  const program = bank?.programs[active] ?? null;
+  const activeIndex = Math.min(active, bank.programs.length - 1);
+  const program = bank.programs[activeIndex];
+  const swapIndex =
+    swapTarget === activeIndex || swapTarget >= bank.programs.length
+      ? bank.programs.findIndex((_, index) => index !== activeIndex)
+      : swapTarget;
 
-  const sources = useMemo(() => {
-    if (!bank) return [];
-    return bank.programs.map((item, slot) => ({
-      bankTitle: fileName.replace(/\.vtxprog$/i, ""),
-      slot,
-      program: item,
-    }));
-  }, [bank, fileName]);
+  const sources = useMemo(
+    () =>
+      bank.programs.map((item, slot) => ({
+        bankTitle: fileName.replace(/\.vtxprog$/i, ""),
+        slot,
+        program: item,
+      })),
+    [bank, fileName],
+  );
 
-  function update(mutator: (program: Program) => Program) {
-    setBank((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        programs: current.programs.map((item, index) => (index === active ? mutator(item) : item)),
-      };
-    });
+  function refreshHistory() {
+    setCanUndo(pastRef.current.length > 0);
+    setCanRedo(futureRef.current.length > 0);
+    setDirty(fingerprint(bankRef.current) !== savedRef.current);
   }
 
-  function setKnob(index: number, value: number) {
-    update((item) => setParam(item, index, value));
+  function applyBank(next: Bank, coalesce = false) {
+    if (!inSameGesture(lastEditAt, pastRef.current.length, coalesce)) {
+      pastRef.current.push(cloneBank(bankRef.current));
+      if (pastRef.current.length > 80) pastRef.current.shift();
+      futureRef.current = [];
+    }
+    bankRef.current = next;
+    setBank(next);
+    refreshHistory();
+  }
+
+  function update(mutator: (program: Program) => Program, coalesce = false) {
+    const current = bankRef.current;
+    const index = Math.min(active, current.programs.length - 1);
+    applyBank(
+      {
+        ...current,
+        programs: current.programs.map((item, itemIndex) => (itemIndex === index ? mutator(item) : item)),
+      },
+      coalesce,
+    );
+  }
+
+  function undo() {
+    const previous = pastRef.current.pop();
+    if (!previous) return;
+    futureRef.current.push(cloneBank(bankRef.current));
+    lastEditAt.current = 0;
+    bankRef.current = previous;
+    setBank(previous);
+    refreshHistory();
+  }
+
+  function redo() {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    pastRef.current.push(cloneBank(bankRef.current));
+    lastEditAt.current = 0;
+    bankRef.current = next;
+    setBank(next);
+    refreshHistory();
+  }
+
+  useEffect(() => {
+    const onLeave = (event: BeforeUnloadEvent) => {
+      if (fingerprint(bankRef.current) === savedRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if ((key === "z" && event.shiftKey) || key === "y") {
+        event.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("beforeunload", onLeave);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("beforeunload", onLeave);
+      window.removeEventListener("keydown", onKey);
+    };
+  });
+
+  function confirmDiscard() {
+    if (fingerprint(bankRef.current) === savedRef.current) return true;
+    return window.confirm("Discard unsaved changes to this bank?");
+  }
+
+  function replaceBank(next: Bank, name: string, note: string) {
+    pastRef.current = [];
+    futureRef.current = [];
+    lastEditAt.current = 0;
+    bankRef.current = next;
+    savedRef.current = fingerprint(next);
+    setBank(next);
+    setActive(0);
+    setFileName(name);
+    setNotes([note]);
+    setError(null);
+    setCanUndo(false);
+    setCanRedo(false);
+    setDirty(false);
+  }
+
+  function setKnob(index: number, value: number, coalesce = false) {
+    update((item) => setParam(item, index, value), coalesce);
   }
 
   function applyEffectKnob(knob: EffectKnob, value: number) {
-    update((item) => ({ ...item, params: withKnob(item.params, knob, value) }));
+    update((item) => ({ ...item, params: withKnob(item.params, knob, value) }), true);
   }
 
   function writePrompt(nextPrompt = prompt) {
-    if (!bank) return;
     try {
       const shaped = shapeTone(nextPrompt, sources);
       update(() => shaped.program);
@@ -110,30 +241,26 @@ export function Bench() {
   }
 
   function newBank() {
-    setBank({ programs: Array.from({ length: 8 }, () => blankProgram()) });
-    setActive(0);
-    setFileName("new-bank.vtxprog");
-    setNotes(["Eight empty slots. Write a tone into the channel you want to keep."]);
-    setError(null);
+    if (!confirmDiscard()) return;
+    replaceBank(emptyBank(), "new-bank.vtxprog", "Eight empty slots. Write a tone into the channel you want to keep.");
   }
 
   async function onFile(file: File) {
+    if (!confirmDiscard()) return;
     try {
       const parsed = parseVtx(new Uint8Array(await file.arrayBuffer()));
-      setBank(parsed);
-      setActive(0);
-      setFileName(file.name);
-      setNotes([`Opened ${file.name}. ${parsed.programs.length} programs.`]);
-      setError(null);
+      const count = parsed.programs.length;
+      const noun = count === 1 ? "program" : "programs";
+      replaceBank(parsed, file.name, `Opened ${file.name}. ${count} ${noun}.`);
     } catch (caught) {
       setError(caught instanceof VtxError || caught instanceof Error ? caught.message : "Could not open that file.");
     }
   }
 
   function download() {
-    if (!bank) return;
+    const current = bankRef.current;
     try {
-      const bytes = writeVtx(bank);
+      const bytes = writeVtx(current);
       const buffer = new ArrayBuffer(bytes.byteLength);
       new Uint8Array(buffer).set(bytes);
       const blob = new Blob([buffer], { type: "application/octet-stream" });
@@ -141,15 +268,67 @@ export function Bench() {
       const link = document.createElement("a");
       link.href = url;
       link.download = downloadName(fileName);
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      savedRef.current = fingerprint(current);
+      setDirty(false);
+      setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not write the file.");
     }
   }
 
+  function copySlot() {
+    const item = bankRef.current.programs[activeIndex];
+    if (!item) return;
+    clipboardRef.current = cloneProgram(item);
+    setHasClipboard(true);
+  }
+
+  function pasteSlot() {
+    const copied = clipboardRef.current;
+    if (!copied) return;
+    update(() => cloneProgram(copied));
+  }
+
+  function resetSlot() {
+    update(() => blankProgram());
+  }
+
+  function swapSlots() {
+    const current = bankRef.current;
+    if (swapIndex < 0 || swapIndex === activeIndex || swapIndex >= current.programs.length) return;
+    const programs = current.programs.map(cloneProgram);
+    const held = programs[activeIndex];
+    programs[activeIndex] = programs[swapIndex];
+    programs[swapIndex] = held;
+    applyBank({ ...current, programs });
+  }
+
   return (
-    <div className="grille min-h-full">
+    <div
+      className={cn("grille min-h-full", dragOver && "ring-2 ring-inset ring-[oklch(0.78_0.12_70)]")}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setDragOver(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDragOver(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragOver(false);
+        const file = event.dataTransfer.files?.[0];
+        if (file) void onFile(file);
+      }}
+    >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -166,20 +345,26 @@ export function Bench() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" onClick={undo} disabled={!canUndo}>
+              Undo
+            </Button>
+            <Button variant="secondary" size="sm" onClick={redo} disabled={!canRedo}>
+              Redo
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
               Open file
             </Button>
             <Button variant="secondary" size="sm" onClick={newBank}>
               New bank
             </Button>
-            <Button size="sm" onClick={download} disabled={!bank}>
+            <Button size="sm" onClick={download}>
               Download bank
             </Button>
             <HelpDialog />
             <input
               ref={fileRef}
               type="file"
-              accept=".vtxprog,application/octet-stream"
+              accept=".vtxprog,application/octet-stream,*/*"
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -196,16 +381,15 @@ export function Bench() {
           </p>
         ) : null}
 
-        {!bank || !program ? (
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-[oklch(0.9_0.02_90)]">
-            <p>No bank is open.</p>
-            <p className="mt-1 text-[oklch(0.78_0.02_85)]">
-              Open a .vtxprog file, or start a new 8-channel bank.
-            </p>
-          </div>
-        ) : (
+        {bank.programs.length !== 8 ? (
+          <p className="rounded-lg border border-[oklch(0.72_0.12_75)] bg-black/25 px-3 py-2 text-sm text-[oklch(0.95_0.02_90)]">
+            This bank has {bank.programs.length} {bank.programs.length === 1 ? "program" : "programs"}. The
+            amp’s user bank is 8 programs, A-1 through B-4.
+          </p>
+        ) : null}
+
           <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-            <aside className="flex flex-col gap-4 rounded-2xl bg-card p-4 text-card-foreground shadow-lg">
+            <aside className="order-2 flex flex-col gap-4 rounded-2xl bg-card p-4 text-card-foreground shadow-lg lg:order-1">
               <div className="space-y-2">
                 <Label htmlFor="prompt">Tone</Label>
                 <Textarea
@@ -238,22 +422,30 @@ export function Bench() {
               </p>
               {notes.length > 0 ? (
                 <ul className="space-y-1 border-t border-border pt-3 text-sm">
-                  {notes.map((note) => (
-                    <li key={note}>{note}</li>
+                  {notes.map((note, index) => (
+                    <li key={`${index}-${note}`}>{note}</li>
                   ))}
                 </ul>
               ) : null}
             </aside>
 
-            <section className="flex min-w-0 flex-col gap-4">
-              <div className="flex gap-2 overflow-x-auto pb-1">
+            <section className="order-1 flex min-w-0 flex-col gap-4 lg:order-2">
+              <div
+                className={
+                  bank.programs.length === 8
+                    ? "grid grid-cols-2 gap-2 lg:grid-cols-4"
+                    : "flex gap-2 overflow-x-auto pb-1"
+                }
+              >
                 {bank.programs.map((item, index) => (
                   <button
-                    key={`${item.name}-${index}`}
+                    key={index}
                     type="button"
                     onClick={() => setActive(index)}
-                    className={`min-w-36 shrink-0 rounded-xl border px-3 py-2 text-left ${
-                      index === active
+                    className={`${
+                      bank.programs.length === 8 ? "min-w-0" : "min-w-36 shrink-0"
+                    } rounded-xl border px-3 py-2 text-left ${
+                      index === activeIndex
                         ? "border-[oklch(0.62_0.14_35)] bg-card text-card-foreground"
                         : "border-white/10 bg-black/20 text-[oklch(0.9_0.02_90)]"
                     }`}
@@ -275,12 +467,45 @@ export function Bench() {
                       value={program.name}
                       maxLength={16}
                       onChange={(event) =>
-                        update((item) => ({ ...item, name: sanitizeProgramName(event.target.value) }))
+                        update((item) => ({ ...item, name: sanitizeProgramName(event.target.value) }), true)
                       }
                     />
                     <p className="text-xs text-muted-foreground">
-                      {program.name.length}/16 characters · {slotLabel(active)} · {fileName}
+                      {program.name.length}/16 characters · {slotLabel(activeIndex)} · {fileName}
+                      {dirty ? " · Unsaved changes" : ""}
                     </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" size="sm" onClick={copySlot}>
+                      Copy
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={pasteSlot} disabled={!hasClipboard}>
+                      Paste
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={resetSlot}>
+                      Reset
+                    </Button>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      Swap with
+                      <select
+                        className="h-7 rounded-md border border-border bg-background px-2 text-foreground"
+                        value={swapIndex >= 0 ? String(swapIndex) : ""}
+                        onChange={(event) => setSwapTarget(Number(event.target.value))}
+                        disabled={swapIndex < 0}
+                        aria-label="Slot to swap with"
+                      >
+                        {bank.programs.map((_, index) =>
+                          index === activeIndex ? null : (
+                            <option key={index} value={index}>
+                              {slotLabel(index)}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    <Button variant="secondary" size="sm" onClick={swapSlots} disabled={swapIndex < 0}>
+                      Swap
+                    </Button>
                   </div>
                 </div>
                 <p className="mt-3 text-sm">{describeProgram(program)}</p>
@@ -337,18 +562,18 @@ export function Bench() {
                 </div>
 
                 <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
-                  <Knob label="NR sens" value={program.params[AMP_PARAM.nr]} onChange={(value) => setKnob(AMP_PARAM.nr, value)} />
-                  <Knob label="Gain" value={program.params[AMP_PARAM.gain]} onChange={(value) => setKnob(AMP_PARAM.gain, value)} />
-                  <Knob label="Treble" value={program.params[AMP_PARAM.treble]} onChange={(value) => setKnob(AMP_PARAM.treble, value)} />
-                  <Knob label="Middle" value={program.params[AMP_PARAM.middle]} onChange={(value) => setKnob(AMP_PARAM.middle, value)} />
-                  <Knob label="Bass" value={program.params[AMP_PARAM.bass]} onChange={(value) => setKnob(AMP_PARAM.bass, value)} />
-                  <Knob label="Volume" value={program.params[AMP_PARAM.volume]} onChange={(value) => setKnob(AMP_PARAM.volume, value)} />
+                  <Knob label="NR sens" value={program.params[AMP_PARAM.nr]} onChange={(value) => setKnob(AMP_PARAM.nr, value, true)} />
+                  <Knob label="Gain" value={program.params[AMP_PARAM.gain]} onChange={(value) => setKnob(AMP_PARAM.gain, value, true)} />
+                  <Knob label="Treble" value={program.params[AMP_PARAM.treble]} onChange={(value) => setKnob(AMP_PARAM.treble, value, true)} />
+                  <Knob label="Middle" value={program.params[AMP_PARAM.middle]} onChange={(value) => setKnob(AMP_PARAM.middle, value, true)} />
+                  <Knob label="Bass" value={program.params[AMP_PARAM.bass]} onChange={(value) => setKnob(AMP_PARAM.bass, value, true)} />
+                  <Knob label="Volume" value={program.params[AMP_PARAM.volume]} onChange={(value) => setKnob(AMP_PARAM.volume, value, true)} />
                   <Knob
                     label={toneOrPresence(program.params[2])}
                     value={program.params[AMP_PARAM.presence]}
-                    onChange={(value) => setKnob(AMP_PARAM.presence, value)}
+                    onChange={(value) => setKnob(AMP_PARAM.presence, value, true)}
                   />
-                  <Knob label="Resonance" value={program.params[AMP_PARAM.resonance]} onChange={(value) => setKnob(AMP_PARAM.resonance, value)} />
+                  <Knob label="Resonance" value={program.params[AMP_PARAM.resonance]} onChange={(value) => setKnob(AMP_PARAM.resonance, value, true)} />
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
                   Volume is the knob that reads 5.0. Tone on AC30 and AC30TB, and Presence
@@ -424,12 +649,12 @@ export function Bench() {
                   />
                   <div className="rounded-xl border border-border p-3">
                     <h3 className="text-sm font-medium">Reverb</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className={cn("mt-1 text-xs text-muted-foreground", (program.params[1] & REVERB_ENABLE) === 0 && "opacity-50")}>
                       Mix and time are on the amp. Pre delay, low damp, and high damp are
                       Tone Room controls. Pre delay tops out at 70.
                     </p>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <Field label="Type">
+                    <div className="mt-3 grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <Field label="Type" className={cn("min-w-0", (program.params[1] & REVERB_ENABLE) === 0 && "opacity-50")}>
                         <Choice
                           value={program.params[39]}
                           options={REVERB.map((item) => ({ id: item.id, name: item.name }))}
@@ -449,12 +674,12 @@ export function Bench() {
                         />
                       </Field>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <Knob label="Mix" value={program.params[40]} onChange={(value) => setKnob(40, value)} />
-                      <Knob label="Time" value={program.params[41]} onChange={(value) => setKnob(41, value)} />
-                      <Knob label="Pre delay" value={program.params[42]} max={70} onChange={(value) => setKnob(42, value)} />
-                      <Knob label="Low damp" value={program.params[43]} onChange={(value) => setKnob(43, value)} />
-                      <Knob label="High damp" value={program.params[44]} onChange={(value) => setKnob(44, value)} />
+                    <div className={cn("mt-3 grid grid-cols-2 gap-3", (program.params[1] & REVERB_ENABLE) === 0 && "opacity-50")}>
+                      <Knob label="Mix" value={program.params[40]} onChange={(value) => setKnob(40, value, true)} />
+                      <Knob label="Time" value={program.params[41]} onChange={(value) => setKnob(41, value, true)} />
+                      <Knob label="Pre delay" value={program.params[42]} max={70} onChange={(value) => setKnob(42, value, true)} />
+                      <Knob label="Low damp" value={program.params[43]} onChange={(value) => setKnob(43, value, true)} />
+                      <Knob label="High damp" value={program.params[44]} onChange={(value) => setKnob(44, value, true)} />
                     </div>
                   </div>
                 </div>
@@ -462,7 +687,6 @@ export function Bench() {
               </div>
             </section>
           </div>
-        )}
 
         <footer className="text-xs leading-relaxed text-[oklch(0.75_0.02_80)]">
           Vtx Bench is not affiliated with VOX or Korg. Open your own Tone Room bank, or start
@@ -473,9 +697,9 @@ export function Bench() {
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className="space-y-1.5">
+    <div className={cn("space-y-1.5", className)}>
       <Label>{label}</Label>
       {children}
     </div>
@@ -493,6 +717,29 @@ function Choice({
 }) {
   const known = options.some((option) => option.id === value);
   const items = known ? options : [{ id: value, name: String(value) }, ...options];
+  if (known && options.length >= 2 && options.length <= 3) {
+    return (
+      <div role="group" className="flex rounded-lg border border-border bg-background p-0.5">
+        {options.map((option) => {
+          const selected = option.id === value;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={selected}
+              className={cn(
+                "min-w-0 flex-1 rounded-md px-2 py-1 text-xs",
+                selected ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
+              )}
+              onClick={() => onChange(option.id)}
+            >
+              {option.name}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
   return (
     <Select
       value={String(value)}
@@ -534,16 +781,17 @@ function EffectBlock({
 }) {
   const list = kind === "pedal1" ? PEDAL1 : PEDAL2;
   const effect = effectById(kind, type);
+  const enabled = (params[1] & (kind === "pedal1" ? PEDAL1_ENABLE : PEDAL2_ENABLE)) !== 0;
   return (
     <div className="rounded-xl border border-border p-3">
       <h3 className="text-sm font-medium">{title}</h3>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className={cn("mt-1 text-xs text-muted-foreground", !enabled && "opacity-50")}>
         {effect.onPanel
           ? "On the amp’s effect selector."
           : "Tone Room type. The amp’s selector does not list it. A user program still plays it."}
       </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <Field label="Type">
+      <div className="mt-3 grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <Field label="Type" className={cn("min-w-0", !enabled && "opacity-50")}>
           <Choice
             value={type}
             options={list.map((item) => ({ id: item.id, name: pedalLabel(kind, item.id) }))}
@@ -564,7 +812,7 @@ function EffectBlock({
           />
         </Field>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className={cn("mt-3 grid grid-cols-2 gap-3", !enabled && "opacity-50")}>
         {effect.knobs.map((knob) =>
           knob.choices ? (
             <Field key={`${knob.label}-${knob.index}`} label={knob.label}>
@@ -583,7 +831,7 @@ function EffectBlock({
               value={knobValue(params, knob)}
               format={
                 knob.pair === "millihertz"
-                  ? (next) => (next / 1000).toFixed(3)
+                  ? (next) => `${(next / 1000).toFixed(3)} Hz`
                   : knob.pair === "milliseconds"
                     ? (next) => `${next} ms`
                     : undefined
