@@ -11,6 +11,8 @@ export type Program = {
 
 export type Bank = {
   programs: Program[];
+  /** Bytes 12–31 of the file. Omitted on a bank created in the editor. */
+  headerPad?: number[];
 };
 
 export class VtxError extends Error {
@@ -54,7 +56,7 @@ export function parseVtx(data: Uint8Array): Bank {
     const params = Array.from(data.subarray(offset + NAME_LEN, offset + RECORD_LEN));
     programs.push({ name: decodeName(nameBytes), params });
   }
-  return { programs };
+  return { programs, headerPad: Array.from(data.subarray(MAGIC.length, HEADER_LEN)) };
 }
 
 export function writeVtx(bank: Bank): Uint8Array {
@@ -63,6 +65,7 @@ export function writeVtx(bank: Bank): Uint8Array {
   }
   const out = new Uint8Array(HEADER_LEN + bank.programs.length * RECORD_LEN);
   for (let i = 0; i < MAGIC.length; i++) out[i] = MAGIC.charCodeAt(i);
+  writeHeaderPad(out, bank.headerPad);
   bank.programs.forEach((program, index) => {
     const offset = HEADER_LEN + index * RECORD_LEN;
     const name = encodeName(program.name);
@@ -102,16 +105,38 @@ export function clampKnob(value: number, max = 100): number {
   return Math.max(0, Math.min(max, Math.round(value)));
 }
 
+const PAD_LEN = HEADER_LEN - MAGIC.length;
+
+function writeHeaderPad(out: Uint8Array, headerPad: number[] | undefined) {
+  if (!headerPad) return;
+  if (headerPad.length !== PAD_LEN) {
+    throw new VtxError("The header pad must be 20 bytes.");
+  }
+  headerPad.forEach((value, index) => {
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      throw new VtxError(`Header pad byte ${index} is outside 0–255.`);
+    }
+    out[MAGIC.length + index] = value;
+  });
+}
+
+/** Printable ASCII, at most 16 characters, with trailing whitespace removed. */
+export function sanitizeProgramName(name: string): string {
+  return name.replace(/[^\x20-\x7e]/g, "").replace(/\s+$/g, "").slice(0, NAME_LEN);
+}
+
 function decodeName(bytes: Uint8Array): string {
   let text = "";
-  for (const byte of bytes) text += String.fromCharCode(byte);
+  for (const byte of bytes) {
+    if (byte !== 0) text += String.fromCharCode(byte);
+  }
   return text.replace(/\s+$/g, "");
 }
 
 function encodeName(name: string): Uint8Array {
   const bytes = new Uint8Array(NAME_LEN);
   bytes.fill(0x20);
-  const clean = name.replace(/[^\x20-\x7e]/g, "").slice(0, NAME_LEN);
+  const clean = sanitizeProgramName(name);
   for (let i = 0; i < clean.length; i++) bytes[i] = clean.charCodeAt(i);
   return bytes;
 }

@@ -8,12 +8,23 @@ import {
   PEDAL1,
   PEDAL2,
   knobValue,
+  switchEffectType,
   toneOrPresence,
   withKnob,
   type EffectKnob,
 } from "../src/lib/amps";
 import { shapeTone, type ToneSource } from "../src/lib/tone";
-import { HEADER_LEN, MAGIC, RECORD_LEN, blankProgram, bytesEqual, parseVtx, writeVtx } from "../src/lib/vtx";
+import {
+  HEADER_LEN,
+  MAGIC,
+  NAME_LEN,
+  RECORD_LEN,
+  blankProgram,
+  bytesEqual,
+  parseVtx,
+  sanitizeProgramName,
+  writeVtx,
+} from "../src/lib/vtx";
 
 const library: ToneSource[] = [
   { bankTitle: "New bank", slot: 0, program: blankProgram("Empty") },
@@ -67,6 +78,9 @@ try {
 if (failed) throw new Error("Short files should be rejected.");
 
 assertEditorMap();
+assertHeaderPad();
+assertNullPaddedNames();
+assertEffectSwitches();
 
 console.log("Checked synthetic programs and blank-program tone descriptions.");
 console.log(chime.notes.join(" "));
@@ -210,5 +224,145 @@ function assertEditorMap() {
     if (stored[index] !== 0) throw new Error(`Parameter ${index} was written.`);
   }
   if (stored[45] !== 0) throw new Error("Parameter 45 was written.");
+}
+
+function assertHeaderPad() {
+  const headerPad = Array.from({ length: 20 }, (_, index) => index + 1);
+  const file = writeVtx({ programs: [blankProgram("Pad")], headerPad });
+  for (let index = 0; index < headerPad.length; index++) {
+    if (file[MAGIC.length + index] !== headerPad[index]) {
+      throw new Error(`Header pad byte ${index} wrote ${file[MAGIC.length + index]}.`);
+    }
+  }
+  const parsed = parseVtx(file);
+  if (!parsed.headerPad || parsed.headerPad.length !== 20) {
+    throw new Error("parseVtx did not keep the 20-byte header pad.");
+  }
+  if (parsed.headerPad.some((value, index) => value !== headerPad[index])) {
+    throw new Error("Header pad did not round-trip.");
+  }
+  if (!bytesEqual(file, writeVtx(parsed))) throw new Error("Padded bank did not round-trip.");
+
+  const fresh = writeVtx({ programs: [blankProgram("Zero")] });
+  for (let index = MAGIC.length; index < HEADER_LEN; index++) {
+    if (fresh[index] !== 0) throw new Error(`Missing header pad wrote ${fresh[index]} at ${index}.`);
+  }
+}
+
+function assertNullPaddedNames() {
+  const file = writeVtx({ programs: [blankProgram("Temp")] });
+  const embedded = new Uint8Array(file);
+  const nameAt = HEADER_LEN;
+  for (let index = 0; index < NAME_LEN; index++) embedded[nameAt + index] = 0;
+  const raw = [0x4e, 0x61, 0x6d, 0x65, 0x00, 0x58, 0x00];
+  for (let index = 0; index < raw.length; index++) embedded[nameAt + index] = raw[index];
+  if (parseVtx(embedded).programs[0].name !== "NameX") {
+    throw new Error(`Embedded nulls decoded as ${JSON.stringify(parseVtx(embedded).programs[0].name)}.`);
+  }
+
+  const spaced = new Uint8Array(file);
+  const hello = "Hello   ";
+  for (let index = 0; index < NAME_LEN; index++) spaced[nameAt + index] = 0x20;
+  for (let index = 0; index < hello.length; index++) spaced[nameAt + index] = hello.charCodeAt(index);
+  if (parseVtx(spaced).programs[0].name !== "Hello") throw new Error("Trailing spaces were kept.");
+
+  const mixed = new Uint8Array(file);
+  for (let index = 0; index < NAME_LEN; index++) mixed[nameAt + index] = 0;
+  const mixedRaw = [0x48, 0x69, 0x00, 0x20, 0x20, 0x00];
+  for (let index = 0; index < mixedRaw.length; index++) mixed[nameAt + index] = mixedRaw[index];
+  if (parseVtx(mixed).programs[0].name !== "Hi") {
+    throw new Error(`Mixed nulls decoded as ${JSON.stringify(parseVtx(mixed).programs[0].name)}.`);
+  }
+
+  if (sanitizeProgramName("Caf\u00e9\nTone") !== "CafTone") {
+    throw new Error(`sanitizeProgramName kept ${JSON.stringify(sanitizeProgramName("Caf\u00e9\nTone"))}.`);
+  }
+  if (sanitizeProgramName(`${"x".repeat(20)}  `) !== "x".repeat(16)) {
+    throw new Error("sanitizeProgramName did not stop at 16 characters.");
+  }
+  const saved = parseVtx(writeVtx({ programs: [{ name: "Caf\u00e9\nTone  ", params: [...blankProgram().params] }] }));
+  if (saved.programs[0].name !== "CafTone") {
+    throw new Error(`Saved name was ${JSON.stringify(saved.programs[0].name)}.`);
+  }
+}
+
+function assertBytesInRange(params: number[], kind: "pedal1" | "pedal2") {
+  params.forEach((value, index) => {
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      throw new Error(`Parameter ${index} is ${value}.`);
+    }
+  });
+  const typeIndex = kind === "pedal1" ? 15 : 23;
+  const list = kind === "pedal1" ? PEDAL1 : PEDAL2;
+  const effect = list.find((item) => item.id === params[typeIndex]);
+  if (!effect) throw new Error(`${kind} type ${params[typeIndex]} is not a known effect.`);
+  for (const knob of effect.knobs) {
+    const value = knobValue(params, knob);
+    const min = knob.min ?? 0;
+    const max = knob.max ?? 100;
+    if (value < min || value > max) {
+      throw new Error(`${effect.name} ${knob.label} is ${value}, outside ${min}–${max}.`);
+    }
+    if (knob.choices && !knob.choices.some((choice) => choice.id === params[knob.index])) {
+      throw new Error(`${effect.name} ${knob.label} is not one of its choices.`);
+    }
+  }
+}
+
+function assertEffectSwitches() {
+  let chorus = Array.from({ length: 46 }, () => 0);
+  chorus[1] = 22;
+  chorus[2] = 6;
+  chorus[14] = 0;
+  chorus[31] = 0;
+  chorus[45] = 0;
+  chorus[15] = 1;
+  chorus = withKnob(chorus, effectKnob("pedal1", "Chorus", "Speed"), 10000);
+  chorus = withKnob(chorus, effectKnob("pedal1", "Chorus", "Depth"), 100);
+  chorus = withKnob(chorus, effectKnob("pedal1", "Chorus", "Manual"), 100);
+  chorus = withKnob(chorus, effectKnob("pedal1", "Chorus", "Mix"), 100);
+  chorus[21] = 1;
+  chorus[22] = 1;
+  chorus[24] = 117;
+  const comp = switchEffectType(chorus, "pedal1", 0);
+  if (comp[15] !== 0) throw new Error("Chorus to Comp did not set the type byte.");
+  assertBytesInRange(comp, "pedal1");
+  if (comp[17] !== 0 || comp[21] !== 0 || comp[22] !== 0) {
+    throw new Error("Comp left chorus bytes that it does not use.");
+  }
+  if (comp[20] !== 0) throw new Error("Comp voice was not reset into 0–2.");
+  if (comp[24] !== 117 || comp[1] !== 22 || comp[2] !== 6 || comp[14] !== 0) {
+    throw new Error("Pedal 1 switch changed bytes outside 15–22.");
+  }
+
+  let drive = Array.from({ length: 46 }, () => 0);
+  drive[15] = 2;
+  for (const label of ["Gain", "Tone", "Level", "Treble", "Middle", "Bass"]) {
+    drive = withKnob(drive, effectKnob("pedal1", "Tube OD", label), 100);
+  }
+  drive[17] = 255;
+  const asChorus = switchEffectType(drive, "pedal1", 1);
+  if (asChorus[15] !== 1) throw new Error("Tube OD to Chorus did not set the type byte.");
+  assertBytesInRange(asChorus, "pedal1");
+  const speed = knobValue(asChorus, effectKnob("pedal1", "Chorus", "Speed"));
+  if (speed < 100 || speed > 10000) throw new Error(`Chorus speed left the millihertz range at ${speed}.`);
+
+  let delay = Array.from({ length: 46 }, () => 0);
+  delay[23] = 5;
+  delay = withKnob(delay, effectKnob("pedal2", "Tape Echo", "Time"), 1200);
+  delay = withKnob(delay, effectKnob("pedal2", "Tape Echo", "Feedback"), 80);
+  const tremolo = switchEffectType(delay, "pedal2", 4);
+  if (tremolo[23] !== 4) throw new Error("Tape Echo to Tremolo did not set the type byte.");
+  assertBytesInRange(tremolo, "pedal2");
+  const tremSpeed = knobValue(tremolo, effectKnob("pedal2", "Tremolo", "Speed"));
+  if (tremSpeed < 1650 || tremSpeed > 10000) {
+    throw new Error(`Tremolo speed left its range at ${tremSpeed}.`);
+  }
+  if (tremolo[30] !== 0) throw new Error("Tremolo kept the delay mod-depth byte.");
+  const analog = switchEffectType(tremolo, "pedal2", 6);
+  if (analog[23] !== 6) throw new Error("Tremolo to Analog Delay did not set the type byte.");
+  assertBytesInRange(analog, "pedal2");
+  const time = knobValue(analog, effectKnob("pedal2", "Analog Delay", "Time"));
+  if (time !== 30) throw new Error(`Analog Delay started at ${time} ms instead of 30.`);
 }
 

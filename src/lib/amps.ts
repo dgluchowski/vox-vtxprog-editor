@@ -276,3 +276,55 @@ export function pedalLabel(kind: "pedal1" | "pedal2", id: number): string {
   return effect.onPanel ? effect.name : `${effect.name} · Tone Room`;
 }
 
+function isDelay(effect: EffectType): boolean {
+  return effect.name === "Tape Echo" || effect.name === "Analog Delay";
+}
+
+/**
+ * Set the pedal type and bring the shared knob bytes into that type's range.
+ * Pedal 1 uses parameter 15 and bytes 16–22. Pedal 2 uses 23 and bytes 24–30.
+ * Analog Delay and Tape Echo start at 30 ms when the previous type is not
+ * already one of those two. Bytes the new type does not use are cleared.
+ */
+export function switchEffectType(
+  params: readonly number[],
+  kind: "pedal1" | "pedal2",
+  nextTypeId: number,
+): number[] {
+  const next = [...params];
+  const typeIndex = kind === "pedal1" ? 15 : 23;
+  const previous = effectById(kind, next[typeIndex] ?? 0);
+  const typeId = Math.max(0, Math.min(255, Math.round(nextTypeId)));
+  const effect = effectById(kind, typeId);
+  next[typeIndex] = typeId;
+
+  const start = kind === "pedal1" ? 16 : 24;
+  const end = kind === "pedal1" ? 22 : 30;
+  const covered = new Set<number>();
+  for (const knob of effect.knobs) {
+    covered.add(knob.index);
+    if (knob.pair) covered.add(knob.index + 1);
+  }
+  for (let index = start; index <= end; index++) {
+    if (!covered.has(index)) next[index] = 0;
+  }
+
+  const enteringDelay = isDelay(effect) && !isDelay(previous);
+  let written = next;
+  for (const knob of effect.knobs) {
+    if (knob.choices) {
+      const ids = knob.choices.map((choice) => choice.id);
+      const current = written[knob.index] ?? 0;
+      written[knob.index] = ids.includes(current) ? current : (ids[0] ?? 0);
+      continue;
+    }
+    if (knob.pair === "milliseconds" && enteringDelay) {
+      written = withKnob(written, knob, knob.min ?? 30);
+      continue;
+    }
+    const current = knob.pair ? knobValue(written, knob) : (written[knob.index] ?? 0);
+    written = withKnob(written, knob, current);
+  }
+  return written;
+}
+

@@ -16,5 +16,8 @@ The script shapes a few tone descriptions from a blank program, rejects a file t
 - Pedal 2 speed and delay time are the little-endian pair at 24–25.
 - Flanger manual is parameter 27, and writing it leaves the speed pair alone.
 - A constructed program round-trips, the header pad stays zero, and parameters 31–38 and 45 stay zero.
+- A non-zero 20-byte header pad round-trips. A bank with no pad writes zeros.
+- A name with embedded nulls, trailing nulls, and trailing spaces decodes to the visible text. `sanitizeProgramName` keeps printable ASCII and at most 16 characters.
+- `switchEffectType` keeps every knob byte in range for Chorus → Comp, Tube OD → Chorus, and Tape Echo → Tremolo → Analog Delay. The last step starts the delay at 30 ms. The other pedal’s bytes stay put.
 
 The script does not open Tone Room, and it does not send a program to an amp.
