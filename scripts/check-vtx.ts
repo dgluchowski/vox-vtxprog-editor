@@ -24,9 +24,12 @@ import {
   RECORD_LEN,
   blankProgram,
   bytesEqual,
+  downloadName,
   parseVtx,
   sanitizeProgramName,
+  slotLabel,
   writeVtx,
+  VtxError,
 } from "../src/lib/vtx";
 
 const library: ToneSource[] = [
@@ -86,6 +89,8 @@ assertNullPaddedNames();
 assertEffectSwitches();
 assertToneEngine();
 assertDescription();
+assertErrorPaths();
+assertNamesAndSlots();
 
 console.log("Checked synthetic programs and blank-program tone descriptions.");
 console.log(chime.notes.join(" "));
@@ -369,6 +374,63 @@ function assertEffectSwitches() {
   assertBytesInRange(analog, "pedal2");
   const time = knobValue(analog, effectKnob("pedal2", "Analog Delay", "Time"));
   if (time !== 30) throw new Error(`Analog Delay started at ${time} ms instead of 30.`);
+}
+
+function assertVtxError(label: string, run: () => void, snippet: string) {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof VtxError && error.message.includes(snippet)) return;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label} threw ${message}`);
+  }
+  throw new Error(`${label} did not throw.`);
+}
+
+function assertErrorPaths() {
+  const good = writeVtx({ programs: [blankProgram("Ok")] });
+  const magic = new Uint8Array(good);
+  magic[0] = 0x58;
+  assertVtxError("bad magic", () => parseVtx(magic), "VTXPROG1000");
+  const odd = new Uint8Array(good.length + 10);
+  odd.set(good);
+  assertVtxError("bad length", () => parseVtx(odd), "62-byte");
+  assertVtxError("too short", () => parseVtx(new Uint8Array(40)), "too small");
+
+  assertVtxError("empty bank", () => writeVtx({ programs: [] }), "at least one");
+  assertVtxError(
+    "wrong param length",
+    () => writeVtx({ programs: [{ name: "X", params: [1, 2, 3] }] }),
+    "46 parameters",
+  );
+  const high = blankProgram("High");
+  high.params[3] = 256;
+  assertVtxError("high byte", () => writeVtx({ programs: [high] }), "outside 0–255");
+  const low = blankProgram("Low");
+  low.params[3] = -1;
+  assertVtxError("low byte", () => writeVtx({ programs: [low] }), "outside 0–255");
+  const fraction = blankProgram("Fraction");
+  fraction.params[4] = 1.5;
+  assertVtxError("fractional byte", () => writeVtx({ programs: [fraction] }), "outside 0–255");
+}
+
+function assertNamesAndSlots() {
+  if (downloadName("My Bank.vtxprog") !== "My_Bank.vtxprog") {
+    throw new Error(`downloadName kept spaces: ${downloadName("My Bank.vtxprog")}`);
+  }
+  if (downloadName("Night Drive.VTXPROG") !== "Night_Drive.vtxprog") {
+    throw new Error(`downloadName case: ${downloadName("Night Drive.VTXPROG")}`);
+  }
+  if (downloadName("") !== "tone-bank.vtxprog" || downloadName("   ") !== "tone-bank.vtxprog") {
+    throw new Error("downloadName did not fall back to tone-bank.");
+  }
+  if (slotLabel(0) !== "Bank A · CH1" || slotLabel(3) !== "Bank A · CH4") {
+    throw new Error(`Bank A labels: ${slotLabel(0)}, ${slotLabel(3)}`);
+  }
+  if (slotLabel(4) !== "Bank B · CH1" || slotLabel(7) !== "Bank B · CH4") {
+    throw new Error(`Bank B labels: ${slotLabel(4)}, ${slotLabel(7)}`);
+  }
+  if (slotLabel(8) !== "Extra 9") throw new Error(`Extra label: ${slotLabel(8)}`);
 }
 
 function assertDescription() {
