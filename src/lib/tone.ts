@@ -158,7 +158,7 @@ export function describeProgram(program: Program): string {
   const reverb = ["Room", "Spring", "Hall", "Plate"][reverbId] ?? `type ${reverbId}`;
   const klass = program.params[P.ampClass] === 0 ? "Class A" : "Class AB";
   const mix = program.params[P.reverbMix];
-  return [
+  const parts = [
     amp.name,
     `gain ${program.params[P.gain]}`,
     `treble ${program.params[P.treble]}`,
@@ -166,7 +166,14 @@ export function describeProgram(program: Program): string {
     `bass ${program.params[P.bass]}`,
     klass,
     mix === 0 ? "reverb dry" : `${reverb.toLowerCase()} reverb`,
-  ].join(" · ");
+  ];
+  if ((program.params[P.character] & PEDAL1_ENABLE) !== 0) {
+    parts.push(effectById("pedal1", program.params[15]).name);
+  }
+  if ((program.params[P.character] & PEDAL2_ENABLE) !== 0) {
+    parts.push(effectById("pedal2", program.params[23]).name);
+  }
+  return parts.join(" · ");
 }
 
 const STOP_WORDS = new Set([

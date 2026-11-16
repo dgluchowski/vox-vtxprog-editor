@@ -26,5 +26,6 @@ The script shapes a few tone descriptions from a blank program, rejects a file t
 - Bright cap, low cut, mid boost, bias, and class A/AB write those controls. An explicit class wins over the AC30 class rule.
 - Gain 5 and gain 50 both store 50. Gain 10 stores 100. Reverb mix and time use that same rule. Pre-delay 7 stores 7 and pre-delay 80 stores 70.
 - “call it Night Drive and …” names the program Night Drive. A long description that starts from Empty gets a title of 16 characters or fewer.
+- `describeProgram` names a pedal only when that pedal’s enable bit is on.
 
 The script does not open Tone Room, and it does not send a program to an amp.

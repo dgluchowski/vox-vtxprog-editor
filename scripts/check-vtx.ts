@@ -16,7 +16,7 @@ import {
   withKnob,
   type EffectKnob,
 } from "../src/lib/amps";
-import { shapeTone, type ToneSource } from "../src/lib/tone";
+import { describeProgram, shapeTone, type ToneSource } from "../src/lib/tone";
 import {
   HEADER_LEN,
   MAGIC,
@@ -85,6 +85,7 @@ assertHeaderPad();
 assertNullPaddedNames();
 assertEffectSwitches();
 assertToneEngine();
+assertDescription();
 
 console.log("Checked synthetic programs and blank-program tone descriptions.");
 console.log(chime.notes.join(" "));
@@ -368,6 +369,21 @@ function assertEffectSwitches() {
   assertBytesInRange(analog, "pedal2");
   const time = knobValue(analog, effectKnob("pedal2", "Analog Delay", "Time"));
   if (time !== 30) throw new Error(`Analog Delay started at ${time} ms instead of 30.`);
+}
+
+function assertDescription() {
+  const quiet = describeProgram(blankProgram("Empty"));
+  if (/\b(?:Chorus|Tape Echo|Fuzz|Comp)\b/.test(quiet)) {
+    throw new Error(`Bypassed pedals leaked into the description: ${quiet}`);
+  }
+  const active = blankProgram("Lead");
+  active.params[1] = PEDAL1_ENABLE | PEDAL2_ENABLE;
+  active.params[15] = 9;
+  active.params[23] = 5;
+  const loud = describeProgram(active);
+  if (!loud.includes("Fuzz") || !loud.includes("Tape Echo")) {
+    throw new Error(`Active pedals missing from ${loud}`);
+  }
 }
 
 function source(program: ReturnType<typeof blankProgram>, slot = 0): ToneSource {
