@@ -6,11 +6,11 @@ Scope: Tone Room banks for the VT20X, VT40X, and VT100X. Other amp families are 
 
 | Region | Size | Contents |
 | --- | ---: | --- |
-| Header | 32 bytes | ASCII `VTXPROG1000 ` (12 bytes, including the trailing space), then a 20-byte pad |
+| Header | 32 bytes | ASCII `VTXPROG1000 ` (12 bytes, including the trailing space), then a 20-byte pad. The editor keeps that pad and writes it back. A bank with no pad stores zeros. |
 | Program | 62 bytes | 16-byte name, then 46 parameter bytes |
 | Rest of file | 62 × N | Programs back to back. N is `(file length − 32) / 62` |
 
-The name is space-padded. The editor keeps characters in the printable ASCII range and stores at most 16 of them. The amp’s user bank is eight programs. A file can carry more, and the editor keeps them.
+The name is space-padded. On load, trailing spaces and null bytes are stripped and embedded null bytes are removed. The editor keeps characters in the printable ASCII range and stores at most 16 of them. The name field shows that same text. The amp’s user bank is eight programs. A file can carry more, and the editor keeps them.
 
 Parameter indexes below are into the 46-byte block.
 
@@ -121,13 +121,13 @@ Stored order: Comp, Chorus, Tube OD, Gold Drive, Treble Boost, RC Turbo, Orange 
 
 Tube OD knobs, each taken to 100 on its own save: drive 16, tone 18, level 19, treble 20, middle 21, bass 22. Comp uses sensitivity 16, level 18, attack 19, and voice 20. Chorus is the row in the table above.
 
-Gold Drive, Treble Boost, RC Turbo, Orange Dist, Fat Dist, Brit Lead, and Fuzz share the Tube OD row. The type id is its own byte. The knob sweep is the Tube OD sweep.
+Gold Drive, Treble Boost, RC Turbo, Orange Dist, Fat Dist, Brit Lead, and Fuzz share the Tube OD row. The type id is its own byte. The knob sweep is the Tube OD sweep. Changing the pedal 1 type clamps parameters 16–22 into the selected type’s choices and ranges, and clears any of those bytes the selected type does not use.
 
 ## Pedal 2 (parameter 23)
 
 Stored order: Flanger, Blk Phaser, Org Phaser 1, Org Phaser 2, Tremolo, Tape Echo, Analog Delay.
 
-Flanger: speed pair 24–25, depth 26, manual 27, low cut 28, high cut 29, resonance 30. Blk Phaser and Org Phaser 1: speed pair, resonance 26, manual 27, depth 28. Org Phaser 2 uses that same row. Tremolo: speed pair, depth 26, duty 27, shape 28, level 29. Analog delay: time pair 24–25, level 26, feedback 27, tone 28, mod speed 29, mod depth 30. Tape Echo uses that row. Selecting analog delay or tape echo starts the time pair at 30 ms.
+Flanger: speed pair 24–25, depth 26, manual 27, low cut 28, high cut 29, resonance 30. Blk Phaser and Org Phaser 1: speed pair, resonance 26, manual 27, depth 28. Org Phaser 2 uses that same row. Tremolo: speed pair, depth 26, duty 27, shape 28, level 29. Analog delay: time pair 24–25, level 26, feedback 27, tone 28, mod speed 29, mod depth 30. Tape Echo uses that row. Selecting analog delay or tape echo from any other pedal type starts the time pair at 30 ms. Switching between those two keeps the time, clamped to 30–1200 ms. Changing the pedal 2 type clamps parameters 24–30 into the selected type’s choices and ranges, and clears any of those bytes the selected type does not use. Millihertz pairs clamp to that knob’s range.
 
 ## Unassigned
 

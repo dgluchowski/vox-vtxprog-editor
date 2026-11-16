@@ -16,6 +16,7 @@ import {
   effectById,
   knobValue,
   pedalLabel,
+  switchEffectType,
   toneOrPresence,
   withKnob,
   type EffectKnob,
@@ -25,6 +26,7 @@ import {
   VtxError,
   downloadName,
   parseVtx,
+  sanitizeProgramName,
   setParam,
   slotLabel,
   blankProgram,
@@ -81,6 +83,7 @@ export function Bench() {
     setBank((current) => {
       if (!current) return current;
       return {
+        ...current,
         programs: current.programs.map((item, index) => (index === active ? mutator(item) : item)),
       };
     });
@@ -272,7 +275,7 @@ export function Bench() {
                       value={program.name}
                       maxLength={16}
                       onChange={(event) =>
-                        update((item) => ({ ...item, name: event.target.value.slice(0, 16) }))
+                        update((item) => ({ ...item, name: sanitizeProgramName(event.target.value) }))
                       }
                     />
                     <p className="text-xs text-muted-foreground">
@@ -394,7 +397,12 @@ export function Bench() {
                   <EffectBlock
                     title="Pedal 1"
                     type={program.params[15]}
-                    onType={(value) => setKnob(15, value)}
+                    onType={(value) =>
+                      update((item) => ({
+                        ...item,
+                        params: switchEffectType(item.params, "pedal1", value),
+                      }))
+                    }
                     kind="pedal1"
                     params={program.params}
                     onKnob={setKnob}
@@ -403,7 +411,12 @@ export function Bench() {
                   <EffectBlock
                     title="Pedal 2"
                     type={program.params[23]}
-                    onType={(value) => setKnob(23, value)}
+                    onType={(value) =>
+                      update((item) => ({
+                        ...item,
+                        params: switchEffectType(item.params, "pedal2", value),
+                      }))
+                    }
                     kind="pedal2"
                     params={program.params}
                     onKnob={setKnob}
