@@ -91,10 +91,12 @@ A 0–10 knob position is stored times ten. A number above 10 is the stored byte
 
 ```bash
 npm install
-npm run check
+npm test
 npm run typecheck
+npm run lint
+NODE_ENV=production npm run build
 ```
 
-`npm run check` builds synthetic programs that lock these byte writes. It does not open Tone Room. Details are in [docs/tests.md](docs/tests.md).
+`npm test` builds synthetic programs that lock these byte writes. It does not open Tone Room. `npm run build` forces a production build. `npm start` serves that static export. Details are in [docs/tests.md](docs/tests.md).
 
 Licensed under the [MIT License](LICENSE).
