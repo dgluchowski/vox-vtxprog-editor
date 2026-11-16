@@ -77,6 +77,16 @@ Flanger manual is parameter 27. The save that isolated it turned pedal 2 on and 
 
 Parameter 1 bits 0, 3, 5, 6, and 7 have no Tone Room control. Parameters 31–38 are unassigned. Parameter 45 is unassigned. The 20 header bytes after the magic are an unassigned pad; the files examined store zeros there. The magic itself is the constant above, not a control.
 
+## Tone descriptions
+
+A description picks an amp from the words in it. “normal” with the family name selects the normal channel: Deluxe CL Normal, Tweed 4x10 Normal, VOX AC30, and Brit 1959 Normal. Cali Elation answers to cali, elation, and bogner. Erupt III CH2 answers to erupt, 5150, and evh. Erupt III CH3 answers to erupt 3, erupt iii, and ch3.
+
+“Tone Room” does not select Room reverb. The word “dry”, and “no reverb”, turn reverb off, including its enable bit. Naming a reverb type, or asking for more reverb, turns that bit on.
+
+Pedal words set the type and turn that pedal on. Comp, chorus, overdrive, tube od, gold drive, klon, treble boost, distortion (Orange Dist), and fuzz are pedal 1. Flanger, phaser (Org Phaser 1), tremolo, tape echo, and delay (Analog Delay) are pedal 2. “overdrive special” stays the amp. “pre-delay” stays the reverb control. Bright cap, low cut, and mid boost turn those switches on, or off when the phrase says no or off. Cold, hot, and standard bias write parameter 13. An explicit class A or class AB writes 0 or 1 after any class change that came from the amp.
+
+A 0–10 knob position is stored times ten. A number above 10 is the stored byte, clamped to 0–100. Pre-delay is the stored byte, clamped to 0–70. “call it … and …” stops the name at the conjunction. A description that starts from Empty, and does not name the program, gets a short title instead of Empty.
+
 ## Check
 
 ```bash

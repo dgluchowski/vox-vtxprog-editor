@@ -7,6 +7,9 @@ import {
   AMP_PARAM,
   PEDAL1,
   PEDAL2,
+  PEDAL1_ENABLE,
+  PEDAL2_ENABLE,
+  REVERB_ENABLE,
   knobValue,
   switchEffectType,
   toneOrPresence,
@@ -81,6 +84,7 @@ assertEditorMap();
 assertHeaderPad();
 assertNullPaddedNames();
 assertEffectSwitches();
+assertToneEngine();
 
 console.log("Checked synthetic programs and blank-program tone descriptions.");
 console.log(chime.notes.join(" "));
@@ -364,5 +368,196 @@ function assertEffectSwitches() {
   assertBytesInRange(analog, "pedal2");
   const time = knobValue(analog, effectKnob("pedal2", "Analog Delay", "Time"));
   if (time !== 30) throw new Error(`Analog Delay started at ${time} ms instead of 30.`);
+}
+
+function source(program: ReturnType<typeof blankProgram>, slot = 0): ToneSource {
+  return { bankTitle: "New bank", slot, program };
+}
+
+function expectAmp(prompt: string, id: number) {
+  const shaped = shapeTone(prompt, library);
+  if (shaped.program.params[2] !== id) {
+    throw new Error(`${JSON.stringify(prompt)} selected amp ${shaped.program.params[2]}, expected ${id}.`);
+  }
+}
+
+function assertToneEngine() {
+  expectAmp("boutique clean", 4);
+  expectAmp("boutique cl", 4);
+  expectAmp("dumble", 5);
+  expectAmp("bogner", 14);
+  expectAmp("cali elation", 14);
+  expectAmp("5150", 15);
+  expectAmp("evh crunch", 15);
+  expectAmp("erupt crunch", 15);
+  expectAmp("erupt iii", 16);
+  expectAmp("erupt 3 high gain", 16);
+  expectAmp("ch3 metal", 16);
+  expectAmp("deluxe normal", 1);
+  expectAmp("fender normal channel", 1);
+  expectAmp("tweed normal", 3);
+  expectAmp("plexi normal channel", 9);
+  expectAmp("ac30 normal", 6);
+  expectAmp("vox normal", 6);
+
+  const target = blankProgram("Pristine Clean Tone");
+  target.params[1] = 0b10101001;
+  target.params[13] = 2;
+  target.params[14] = 0;
+  const donor = blankProgram("SpringDonor");
+  donor.params[1] = PEDAL1_ENABLE | PEDAL2_ENABLE | REVERB_ENABLE;
+  donor.params[13] = 0;
+  donor.params[14] = 1;
+  donor.params[15] = 9;
+  donor.params[23] = 4;
+  donor.params[31] = 9;
+  donor.params[39] = 2;
+  donor.params[40] = 55;
+  donor.params[45] = 9;
+  const copied = shapeTone("pristine clean effects from SpringDonor", [source(target), source(donor, 1)]);
+  const enable = PEDAL1_ENABLE | PEDAL2_ENABLE | REVERB_ENABLE;
+  const expectedBits = (0b10101001 & ~enable) | (donor.params[1] & enable);
+  if (copied.program.params[1] !== expectedBits) {
+    throw new Error(`Effect enable bits are ${copied.program.params[1]}, expected ${expectedBits}.`);
+  }
+  if ((copied.program.params[1] & 0b10101001) !== 0b10101001) {
+    throw new Error("Copying effects changed unassigned bits of parameter 1.");
+  }
+  if (copied.program.params[15] !== 9 || copied.program.params[23] !== 4 || copied.program.params[39] !== 2) {
+    throw new Error("Pedal and reverb bytes were not copied.");
+  }
+  if (copied.program.params[13] !== 2 || copied.program.params[14] !== 0) {
+    throw new Error("Copying effects changed bias or class.");
+  }
+  if (copied.program.params[31] !== 0 || copied.program.params[45] !== 0) {
+    throw new Error("Copying effects wrote an unassigned parameter.");
+  }
+
+  const hall = blankProgram("Empty");
+  hall.params[39] = 2;
+  hall.params[40] = 10;
+  hall.params[1] = 0;
+  const toneRoom = shapeTone("Tone Room", [source(hall)]);
+  if (toneRoom.program.params[39] !== 2 || toneRoom.program.params[40] !== 10 || (toneRoom.program.params[1] & REVERB_ENABLE) !== 0) {
+    throw new Error("Tone Room selected Room reverb.");
+  }
+  const drying = shapeTone("drying paint, spring reverb", [source(hall)]);
+  if (drying.program.params[39] !== 1 || (drying.program.params[1] & REVERB_ENABLE) === 0) {
+    throw new Error("drying was treated as dry, or spring did not enable reverb.");
+  }
+  const dry = shapeTone("a dry tone", library);
+  if (dry.program.params[40] !== 0 || (dry.program.params[1] & REVERB_ENABLE) !== 0) {
+    throw new Error("dry did not clear reverb.");
+  }
+  const none = shapeTone("no reverb, deluxe", library);
+  if (none.program.params[40] !== 0 || (none.program.params[1] & REVERB_ENABLE) !== 0) {
+    throw new Error("no reverb did not clear reverb.");
+  }
+  const quiet = blankProgram("Empty");
+  quiet.params[1] = 0;
+  quiet.params[40] = 10;
+  const more = shapeTone("more reverb", [source(quiet)]);
+  if ((more.program.params[1] & REVERB_ENABLE) === 0 || more.program.params[40] !== 28) {
+    throw new Error(`more reverb left mix ${more.program.params[40]} and bits ${more.program.params[1]}.`);
+  }
+
+  const chorus = shapeTone("chorus and tape echo", library);
+  if (chorus.program.params[15] !== 1 || (chorus.program.params[1] & PEDAL1_ENABLE) === 0) {
+    throw new Error("chorus did not enable pedal 1.");
+  }
+  if (chorus.program.params[23] !== 5 || (chorus.program.params[1] & PEDAL2_ENABLE) === 0) {
+    throw new Error("tape echo did not enable pedal 2.");
+  }
+  const klon = shapeTone("klon", library);
+  if (klon.program.params[15] !== 3 || (klon.program.params[1] & PEDAL1_ENABLE) === 0) {
+    throw new Error("klon did not select Gold Drive.");
+  }
+  if (shapeTone("tube od", library).program.params[15] !== 2) throw new Error("tube od missed Tube OD.");
+  const special = shapeTone("overdrive special", library);
+  if (special.program.params[2] !== 5 || (special.program.params[1] & PEDAL1_ENABLE) !== 0) {
+    throw new Error("overdrive special changed the pedal instead of the amp.");
+  }
+  if (shapeTone("some overdrive", library).program.params[15] !== 2) throw new Error("overdrive missed Tube OD.");
+  if (shapeTone("gold drive", library).program.params[15] !== 3) throw new Error("gold drive id.");
+  if (shapeTone("treble boost", library).program.params[15] !== 4) throw new Error("treble boost id.");
+  if (shapeTone("distortion", library).program.params[15] !== 6) throw new Error("distortion missed Orange Dist.");
+  const fuzz = shapeTone("fuzz and tremolo", library);
+  if (fuzz.program.params[15] !== 9 || fuzz.program.params[23] !== 4) {
+    throw new Error(`fuzz/tremolo wrote ${fuzz.program.params[15]} and ${fuzz.program.params[23]}.`);
+  }
+  if ((fuzz.program.params[1] & (PEDAL1_ENABLE | PEDAL2_ENABLE)) !== (PEDAL1_ENABLE | PEDAL2_ENABLE)) {
+    throw new Error("fuzz and tremolo did not enable both pedals.");
+  }
+  if (shapeTone("flanger", library).program.params[23] !== 0) throw new Error("flanger id.");
+  if (shapeTone("phaser", library).program.params[23] !== 2) throw new Error("phaser missed Org Phaser 1.");
+  if (shapeTone("comp", library).program.params[15] !== 0) throw new Error("comp id.");
+
+  const kept = shapeTone("analog delay", library);
+  if (kept.program.params[23] !== 6) throw new Error("analog delay id.");
+  const keptTime = kept.program.params[24] + (kept.program.params[25] << 8);
+  if (keptTime !== 117) throw new Error(`Switching Tape Echo to Analog Delay reset time to ${keptTime}.`);
+  const tremolo = blankProgram("Empty");
+  tremolo.params[23] = 4;
+  tremolo.params[24] = 114;
+  tremolo.params[25] = 6;
+  const intoDelay = shapeTone("delay", [source(tremolo)]);
+  const delayTime = intoDelay.program.params[24] + (intoDelay.program.params[25] << 8);
+  if (intoDelay.program.params[23] !== 6 || delayTime !== 30 || (intoDelay.program.params[1] & PEDAL2_ENABLE) === 0) {
+    throw new Error(`delay from tremolo is type ${intoDelay.program.params[23]} at ${delayTime} ms.`);
+  }
+  const preDelay = shapeTone("pre-delay at 40", library);
+  if ((preDelay.program.params[1] & PEDAL2_ENABLE) !== 0 || preDelay.program.params[42] !== 40) {
+    throw new Error("pre-delay was treated as a delay pedal.");
+  }
+
+  const switches = shapeTone("bright cap, low cut, mid boost, cold bias, class a", library);
+  if (switches.program.params[10] !== 1 || switches.program.params[11] !== 1 || switches.program.params[12] !== 1) {
+    throw new Error("A switch keyword did not turn on.");
+  }
+  if (switches.program.params[13] !== 1 || switches.program.params[14] !== 0) {
+    throw new Error(`Bias ${switches.program.params[13]}, class ${switches.program.params[14]}.`);
+  }
+  const off = shapeTone("no bright cap, bias hot, class ab", library);
+  if (off.program.params[10] !== 0 || off.program.params[13] !== 2 || off.program.params[14] !== 1) {
+    throw new Error("Off switch, hot bias, or class AB was missed.");
+  }
+  const explicitClass = shapeTone("ac30 class ab", library);
+  if (explicitClass.program.params[2] !== 7 || explicitClass.program.params[14] !== 1) {
+    throw new Error(
+      `Explicit class AB lost to the AC30 rule: amp ${explicitClass.program.params[2]}, class ${explicitClass.program.params[14]}.`,
+    );
+  }
+
+  if (shapeTone("gain at 5", library).program.params[3] !== 50) throw new Error("gain 5 did not store 50.");
+  if (shapeTone("gain at 50", library).program.params[3] !== 50) throw new Error("gain 50 did not store 50.");
+  if (shapeTone("gain at 10", library).program.params[3] !== 100) throw new Error("gain 10 did not store 100.");
+  if (shapeTone("reverb mix at 4", library).program.params[40] !== 40) throw new Error("reverb mix scaling.");
+  if (shapeTone("reverb time at 8", library).program.params[41] !== 80) throw new Error("reverb time 0–10 scaling.");
+  if (shapeTone("reverb time at 80", library).program.params[41] !== 80) throw new Error("reverb time stored byte.");
+  const pre7 = shapeTone("pre-delay at 7", library);
+  if (pre7.program.params[42] !== 7 || (pre7.program.params[1] & PEDAL2_ENABLE) !== 0) {
+    throw new Error("pre-delay 7 was scaled or enabled the delay.");
+  }
+  const pre10 = shapeTone("pre delay at 10", library);
+  if (pre10.program.params[42] !== 10 || (pre10.program.params[1] & PEDAL2_ENABLE) !== 0) {
+    throw new Error("pre-delay 10 was scaled or enabled the delay.");
+  }
+  const pre80 = shapeTone("pre delay at 80", library);
+  if (pre80.program.params[42] !== 70 || (pre80.program.params[1] & PEDAL2_ENABLE) !== 0) {
+    throw new Error("pre-delay was not clamped to 70, or it enabled the delay.");
+  }
+
+  const conjunction = shapeTone("call it Night Drive and add chorus", library);
+  if (conjunction.program.name !== "Night Drive" || conjunction.program.params[15] !== 1) {
+    throw new Error(`Name capture kept ${JSON.stringify(conjunction.program.name)}.`);
+  }
+  const titled = shapeTone("scooped high gain, tight, spring reverb", library);
+  if (titled.program.name !== "scooped high") {
+    throw new Error(`Empty slot kept ${JSON.stringify(titled.program.name)}.`);
+  }
+  const keptName = shapeTone("scooped high gain, tight", [source(blankProgram("Plexi Rhythm"))]);
+  if (keptName.program.name !== "Plexi Rhythm") {
+    throw new Error(`Named slot was replaced with ${JSON.stringify(keptName.program.name)}.`);
+  }
 }
 
