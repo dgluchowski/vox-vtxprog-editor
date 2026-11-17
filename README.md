@@ -100,3 +100,5 @@ NODE_ENV=production npm run build
 `npm test` builds synthetic programs that lock these byte writes. It does not open Tone Room. `npm run build` forces a production build. `npm start` serves that static export. Details are in [docs/tests.md](docs/tests.md).
 
 Licensed under the [MIT License](LICENSE).
+
+UI components in `src/components/ui/` are generated with shadcn/ui (MIT, © shadcn) on top of Base UI (MIT). Fonts (Fraunces, Geist, Geist Mono) are SIL Open Font License 1.1 and are loaded through `next/font/google`.
